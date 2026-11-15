@@ -1,0 +1,11 @@
+<Project>
+  <!--
+    The kit is built by each consuming app (ProjectReference), which passes its Platform. This
+    fallback only matters for a standalone "dotnet build": MSBuild defaults to AnyCPU, which isn't in
+    the Platforms list, so pick the OS architecture instead.
+  -->
+  <PropertyGroup Condition="'$(Platform)' == '' Or '$(Platform)' == 'AnyCPU'">
+    <Platform Condition="'$(PROCESSOR_ARCHITECTURE)' == 'ARM64'">ARM64</Platform>
+    <Platform Condition="'$(PROCESSOR_ARCHITECTURE)' != 'ARM64'">x64</Platform>
+  </PropertyGroup>
+</Project>
