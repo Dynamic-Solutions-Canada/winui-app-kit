@@ -13,6 +13,7 @@ Shared plumbing for small WinUI 3 desktop apps that live in the system tray: the
 | Settings | `JsonSettingsStore<T>` | Atomic JSON load/save of the app's own settings class |
 | Startup | `StartupRegistration` | Start with Windows for packaged (startup task) and unpackaged (Run key) builds |
 | Theming | `AppTheme` | System / light / dark choice applied to every open window |
+| Localization | `SupportedLanguages`, `UiText`, `Localize` | Interface text from per-language JSON catalogs embedded in the app, chosen from the user's override or Windows' languages; XAML attached properties that relabel open windows live |
 | App | `AppEnvironment`, `SingleInstance` | Packaged or not, version, data folders, one running copy |
 
 Win32 declarations shared by these live in `Interop/NativeMethods.cs`.

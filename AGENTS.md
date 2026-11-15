@@ -9,6 +9,7 @@ Shared library for the WinUI 3 tray apps (WSL Monitor first; Hub Display Switch,
 - **Namespaces:** never create a `WinUIAppKit.Windows` namespace; it shadows WinRT `Windows.*` (the windowing helpers live in `WinUIAppKit.Windowing`). Write `global::Windows...` for WinRT types.
 - **Windows App SDK stays on the 1.8 line** while every consuming app ships with `Microsoft.WindowsAppRuntime.1.8`. Raising it means updating each app's manifest dependency.
 - Window procedures: never show UI inside a subclass procedure; defer with `DispatcherQueue.TryEnqueue`. Each kit subclass uses its own fixed subclass id (`0x7AA1` tray, `0x7AA2` flyout).
+- Localization: the kit holds the mechanism only. Each app owns its language list, catalogs and keys; never put app wording in the kit. `UiText.SetOverride` and `Changed` run on the UI thread.
 - Keep delegates passed to native code (`SUBCLASSPROC`) in fields so they are not garbage-collected.
 
 ## Verifying
