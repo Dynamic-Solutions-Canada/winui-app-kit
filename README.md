@@ -20,10 +20,11 @@ Win32 declarations shared by these live in `Interop/NativeMethods.cs`.
 
 ## Using it
 
-Add it as a submodule and reference the project:
+Add it as a submodule pinned to the latest release tag (`vX.Y.Z`; see "Versioning"), and reference the project:
 
 ```bash
 git submodule add https://github.com/Dynamic-Solutions-Canada/winui-app-kit.git external/winui-app-kit
+git -C external/winui-app-kit checkout vX.Y.Z
 ```
 
 ```xml
@@ -46,10 +47,26 @@ Apps link to this section rather than repeating it in their own docs.
 - **Interface text:** use `UiText.Get` and `UiText.Format` (placeholders as `{{name}}`) in code, and the `Localize` attached properties (`xmlns:l10n="using:WinUIAppKit.Localization"`, then `l10n:Localize.Text`, `Content`, `Header`, `ToolTip` and the others) in XAML. Store a key or a `LocalizedMessage` on models and services, not finished text, so a language change relabels it. `Localize` relabels XAML live; anything an app builds in code must also refresh on `UiText.Changed`.
 - **Do not set `ApplicationLanguages.PrimaryLanguageOverride`.** When packaged, `UiText` resolves "Match Windows" from the app's language list, which an override replaces. Pass the user's choice to `UiText.Configure` and `UiText.SetOverride` instead.
 
+## Versioning
+
+Each release is an annotated `vX.Y.Z` tag with a GitHub Release whose notes say what changed for apps. Versions follow SemVer:
+
+- **Major:** anything that can break an app that builds against the kit: removing or renaming a public member, changing behaviour listed under "Gotchas", raising the Windows App SDK line or the target framework, or a `.editorconfig` or analyzer change that turns code that built cleanly into an error.
+- **Minor:** new types, members, options or events, with existing behaviour unchanged.
+- **Patch:** fixes that do not change documented behaviour.
+
+Apps pin a tag, never a bare commit, and every app stays on the same tag; an app that falls behind catches up in its next release at the latest. To take a new version, check the tag out in the submodule and commit the pin bump with the subject `Update WinUI App Kit: <what it changes for this app>`:
+
+```bash
+git -C external/winui-app-kit fetch --tags
+git -C external/winui-app-kit checkout vX.Y.Z
+git add external/winui-app-kit
+```
+
 ## Rules for changes
 
 - Keep it domain-neutral: no app names, settings fields or feature behaviour. If an app needs different behaviour, add a general option or event and keep the policy in the app.
-- Every consuming app builds against the kit's current commit, so a breaking change needs those apps updated in the same pass.
+- A breaking change is a new major version, made together with the edits each consuming app needs (see "Versioning").
 - No XAML (yet): pages and windows stay in each app. Shipping XAML from a library needs extra MSIX packaging work in every app.
 
 ## License

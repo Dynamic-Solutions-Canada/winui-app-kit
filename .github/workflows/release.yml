@@ -1,0 +1,116 @@
+name: Release
+
+# Creates the GitHub Release for a vX.Y.Z tag (REL-5, REL-11). Runs the same gate as CI first
+# (CI-4), fails when the tag, the version in Directory.Build.props and the notes file disagree,
+# and never falls back to generated notes (REL-6). The kit ships as source, so nothing is attached.
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+# Anything that publishes never cancels a run in progress (CI-5).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up .NET from global.json
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Run the gate
+        run: npm run validate
+
+  windows-compile:
+    name: Compile (${{ matrix.platform }})
+    runs-on: windows-2025
+    # A cold restore of the Windows App SDK plus one library compile; well under this cap.
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [x64, ARM64]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up .NET from global.json
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Compile the library
+        run: dotnet build WinUIAppKit/WinUIAppKit.csproj --configuration Release -p:Platform=${{ matrix.platform }}
+
+  release:
+    name: Create GitHub Release
+    needs: [validate, windows-compile]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      # The tag, the version source and the notes file must name the same version.
+      - name: Check version and notes
+        id: version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="${TAG#v}"
+          declared="$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' Directory.Build.props | head -1)"
+          if [[ "$declared" != "$version" ]]; then
+            echo "::error::Tag $TAG does not match <Version>$declared</Version> in Directory.Build.props"
+            exit 1
+          fi
+          notes="release-notes/$version.md"
+          if [[ ! -s "$notes" ]]; then
+            echo "::error::Missing or empty $notes; release notes are written and committed before tagging"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "notes=$notes" >> "$GITHUB_OUTPUT"
+
+      # The notes file holds bullets only; the heading, pin instructions and disclosure are added here.
+      - name: Assemble release body
+        env:
+          NOTES: ${{ steps.version.outputs.notes }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          {
+            echo "## What's new"
+            echo
+            cat "$NOTES"
+            echo
+            echo "## Using this version"
+            echo
+            echo "Check out \`$TAG\` in your app's \`external/winui-app-kit\` submodule and commit the pin bump. See \"Versioning\" in the README."
+            echo
+            echo "*AI disclosure: this release and the related code were written with the assistance of AI.*"
+          } > "$RUNNER_TEMP/release-body.md"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release create "$TAG" \
+            --verify-tag \
+            --title "WinUI App Kit $VERSION" \
+            --notes-file "$RUNNER_TEMP/release-body.md" \
+            --latest

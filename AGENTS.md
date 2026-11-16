@@ -45,12 +45,17 @@ The kit owns the plumbing below and nothing else: no app's pages, settings field
 
 To check a change against an app, copy the app into `.artifacts/` with this working tree in place of its `external/winui-app-kit`, then run the app's `verify:desktop` there. Never edit an app's submodule checkout. Tray, flyout and menu behaviour can only be checked in an installed app.
 
+## Release
+
+The kit is released as an annotated `vX.Y.Z` tag that apps pin; the version lives in `<Version>` in `Directory.Build.props`, and each version has notes in `release-notes/<version>.md` for the app developers who consume it. Use the `release` skill (`.agents/skills/release/SKILL.md`); the `Release` workflow creates the GitHub Release from the tag. SemVer meaning and how apps take a new version are in the README's "Versioning" section.
+
 ## Guidance map
 
 | Guide, doc, or skill | Read or use when | Governs |
 | --- | --- | --- |
 | [README.md](README.md) | Changing any public type, or behaviour an app relies on | `WinUIAppKit/**` |
 | [Kits stack index](https://github.com/Dynamic-Solutions-Canada/app-standards/blob/main/stacks/kits.md) | Changing repo layout, scripts, CI, releases or docs | the whole repo |
+| `release` skill | Releasing or tagging the kit | `Directory.Build.props` `<Version>`, `release-notes/`, `.github/workflows/release.yml` |
 
 ## Keeping docs current
 
@@ -63,3 +68,5 @@ To check a change against an app, copy the app into `.artifacts/` with this work
 | A rule for kit changes | README "Rules for changes", or "Conventions and gotchas" above if only an agent needs it |
 | A script in `package.json` or `scripts/`, or a CI job | The Commands table above |
 | `.editorconfig` | Nothing here, but every app copies it from the next tag: say so in the release notes |
+| The release procedure, the version source or the `Release` workflow | The `release` skill, the Release section above and README "Versioning" |
+| What counts as breaking | README "Versioning" |
