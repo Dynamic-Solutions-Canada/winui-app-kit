@@ -29,6 +29,33 @@
       <Link>WinUIAppKit\SettingsShell.xaml.cs</Link>
     </Compile>
 
+    <!-- The "Start with Windows" row (UI-4, TRAY-10). -->
+    <Page Include="$(MSBuildThisFileDirectory)Settings\StartupSetting.xaml">
+      <Link>WinUIAppKit\StartupSetting.xaml</Link>
+    </Page>
+    <Compile Include="$(MSBuildThisFileDirectory)Settings\StartupSetting.xaml.cs">
+      <DependentUpon>StartupSetting.xaml</DependentUpon>
+      <Link>WinUIAppKit\StartupSetting.xaml.cs</Link>
+    </Compile>
+
+    <!-- The "App theme" row (UI-4). -->
+    <Page Include="$(MSBuildThisFileDirectory)Settings\ThemeSetting.xaml">
+      <Link>WinUIAppKit\ThemeSetting.xaml</Link>
+    </Page>
+    <Compile Include="$(MSBuildThisFileDirectory)Settings\ThemeSetting.xaml.cs">
+      <DependentUpon>ThemeSetting.xaml</DependentUpon>
+      <Link>WinUIAppKit\ThemeSetting.xaml.cs</Link>
+    </Compile>
+
+    <!-- The "Language" row (UI-4, LOC-4). -->
+    <Page Include="$(MSBuildThisFileDirectory)Settings\LanguageSetting.xaml">
+      <Link>WinUIAppKit\LanguageSetting.xaml</Link>
+    </Page>
+    <Compile Include="$(MSBuildThisFileDirectory)Settings\LanguageSetting.xaml.cs">
+      <DependentUpon>LanguageSetting.xaml</DependentUpon>
+      <Link>WinUIAppKit\LanguageSetting.xaml.cs</Link>
+    </Compile>
+
     <!-- The About page (UI-5, BRAND-8); navigate to it with an AboutInfo. -->
     <Page Include="$(MSBuildThisFileDirectory)AboutPage.xaml">
       <Link>WinUIAppKit\AboutPage.xaml</Link>

@@ -26,5 +26,10 @@
   "kit.about.license": "License",
   "kit.about.third-party-notices": "Third-party notices",
   "kit.about.diagnostics": "Diagnostics",
-  "kit.about.open-logs-folder": "Open logs folder"
+  "kit.about.open-logs-folder": "Open logs folder",
+  "kit.settings.on": "On",
+  "kit.settings.off": "Off",
+  "kit.settings.startup-user-off": "Turned off in Windows Settings (Apps > Startup). Turn it back on there.",
+  "kit.settings.startup-policy-off": "Turned off by your organization.",
+  "kit.settings.startup-policy-on": "Turned on by your organization."
 }

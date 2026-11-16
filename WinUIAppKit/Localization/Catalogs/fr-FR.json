@@ -26,5 +26,10 @@
   "kit.about.license": "Licence",
   "kit.about.third-party-notices": "Mentions tierces",
   "kit.about.diagnostics": "Diagnostics",
-  "kit.about.open-logs-folder": "Ouvrir le dossier des journaux"
+  "kit.about.open-logs-folder": "Ouvrir le dossier des journaux",
+  "kit.settings.on": "Activé",
+  "kit.settings.off": "Désactivé",
+  "kit.settings.startup-user-off": "Désactivé dans les Paramètres Windows (Applications > Démarrage). Réactivez-le à cet endroit.",
+  "kit.settings.startup-policy-off": "Désactivé par votre organisation.",
+  "kit.settings.startup-policy-on": "Activé par votre organisation."
 }

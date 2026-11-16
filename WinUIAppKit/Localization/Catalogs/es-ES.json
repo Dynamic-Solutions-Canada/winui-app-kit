@@ -26,5 +26,10 @@
   "kit.about.license": "Licencia",
   "kit.about.third-party-notices": "Avisos de terceros",
   "kit.about.diagnostics": "Diagnóstico",
-  "kit.about.open-logs-folder": "Abrir carpeta de registros"
+  "kit.about.open-logs-folder": "Abrir carpeta de registros",
+  "kit.settings.on": "Activado",
+  "kit.settings.off": "Desactivado",
+  "kit.settings.startup-user-off": "Desactivado en Configuración de Windows (Aplicaciones > Inicio). Vuelve a activarlo allí.",
+  "kit.settings.startup-policy-off": "Desactivado por tu organización.",
+  "kit.settings.startup-policy-on": "Activado por tu organización."
 }

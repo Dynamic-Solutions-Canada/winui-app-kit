@@ -42,6 +42,18 @@ public partial class App : Application
             }
         };
 
+        // The settings rows, as an app's Settings page uses them.
+        var rows = new StackPanel();
+        var startup = new Controls.StartupSetting { Registration = new Startup.StartupRegistration("CompileCheckStartup", "Compile check") };
+        startup.StatusChanged += isOn => { };
+        var theme = new Controls.ThemeSetting();
+        theme.ChoiceChanged += choice => { };
+        var language = new Controls.LanguageSetting();
+        language.ChoiceChanged += identity => { };
+        rows.Children.Add(startup);
+        rows.Children.Add(theme);
+        rows.Children.Add(language);
+
         shell.Select(SettingsShell.AboutTag);
         window.Activate();
     }

@@ -23,7 +23,7 @@ The kit owns the plumbing below and nothing else: no app's pages, settings field
 | Logging | `WinUIAppKit/Logging/` |
 | About page data | `WinUIAppKit/Pages/` |
 | App environment, single instance, Win32 declarations | `WinUIAppKit/AppEnvironment.cs`, `WinUIAppKit/SingleInstance.cs`, `WinUIAppKit/Interop/` |
-| Shared XAML (styles, settings shell, About page), compiled by each app | `Xaml/`, with `Xaml/CompileCheck/` building it for the kit |
+| Shared XAML (styles, settings shell, About page, Settings page rows), compiled by each app | `Xaml/`, with `Xaml/CompileCheck/` building it for the kit |
 | Shared build configuration for apps and the kit | `build/`, imported by the root `Directory.Build.props`, `Directory.Build.targets` and `Directory.Packages.props` |
 
 ## Conventions and gotchas

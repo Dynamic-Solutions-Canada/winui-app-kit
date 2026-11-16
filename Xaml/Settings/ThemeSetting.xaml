@@ -1,0 +1,13 @@
+<!-- The "App theme" row (UI-4): Use system setting, Light, Dark, applied to every open window at once. -->
+<UserControl
+    x:Class="WinUIAppKit.Controls.ThemeSetting"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:l10n="using:WinUIAppKit.Localization">
+    <ComboBox x:Name="Choices" l10n:Localize.Header="kit.settings.app-theme" MinWidth="220"
+              SelectionChanged="Choices_SelectionChanged">
+        <ComboBoxItem l10n:Localize.Content="kit.settings.use-system-setting" />
+        <ComboBoxItem l10n:Localize.Content="kit.settings.light" />
+        <ComboBoxItem l10n:Localize.Content="kit.settings.dark" />
+    </ComboBox>
+</UserControl>

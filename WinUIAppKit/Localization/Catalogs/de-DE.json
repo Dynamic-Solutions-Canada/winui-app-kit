@@ -26,5 +26,10 @@
   "kit.about.license": "Lizenz",
   "kit.about.third-party-notices": "Hinweise zu Drittanbietern",
   "kit.about.diagnostics": "Diagnose",
-  "kit.about.open-logs-folder": "Protokollordner öffnen"
+  "kit.about.open-logs-folder": "Protokollordner öffnen",
+  "kit.settings.on": "Ein",
+  "kit.settings.off": "Aus",
+  "kit.settings.startup-user-off": "In den Windows-Einstellungen deaktiviert (Apps > Autostart). Dort wieder aktivieren.",
+  "kit.settings.startup-policy-off": "Von deiner Organisation deaktiviert.",
+  "kit.settings.startup-policy-on": "Von deiner Organisation aktiviert."
 }

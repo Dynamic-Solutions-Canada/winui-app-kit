@@ -26,5 +26,10 @@
   "kit.about.license": "ライセンス",
   "kit.about.third-party-notices": "サード パーティに関する通知",
   "kit.about.diagnostics": "診断",
-  "kit.about.open-logs-folder": "ログ フォルダーを開く"
+  "kit.about.open-logs-folder": "ログ フォルダーを開く",
+  "kit.settings.on": "オン",
+  "kit.settings.off": "オフ",
+  "kit.settings.startup-user-off": "Windows の設定（アプリ > スタートアップ）でオフになっています。そこで再度オンにしてください。",
+  "kit.settings.startup-policy-off": "組織によってオフにされています。",
+  "kit.settings.startup-policy-on": "組織によってオンにされています。"
 }

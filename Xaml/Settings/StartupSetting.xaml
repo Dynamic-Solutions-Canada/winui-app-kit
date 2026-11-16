@@ -1,0 +1,17 @@
+<!--
+  The "Start with Windows" row (UI-4, TRAY-10): a switch that shows Windows' real state and, when the
+  user (in Windows Settings) or a policy decided, is disabled with a note saying where the decision lives.
+-->
+<UserControl
+    x:Class="WinUIAppKit.Controls.StartupSetting"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:l10n="using:WinUIAppKit.Localization">
+    <StackPanel Spacing="4">
+        <ToggleSwitch x:Name="Switch" l10n:Localize.Header="kit.settings.start-with-windows"
+                      l10n:Localize.OnContent="kit.settings.on" l10n:Localize.OffContent="kit.settings.off"
+                      Toggled="Switch_Toggled" />
+        <TextBlock x:Name="Note" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="Collapsed" Margin="0,-4,0,4" />
+    </StackPanel>
+</UserControl>

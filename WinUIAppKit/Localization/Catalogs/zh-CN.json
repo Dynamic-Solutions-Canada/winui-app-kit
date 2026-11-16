@@ -26,5 +26,10 @@
   "kit.about.license": "许可证",
   "kit.about.third-party-notices": "第三方声明",
   "kit.about.diagnostics": "诊断",
-  "kit.about.open-logs-folder": "打开日志文件夹"
+  "kit.about.open-logs-folder": "打开日志文件夹",
+  "kit.settings.on": "开",
+  "kit.settings.off": "关",
+  "kit.settings.startup-user-off": "已在 Windows 设置（应用 > 启动）中关闭。请在那里重新打开。",
+  "kit.settings.startup-policy-off": "已被你的组织关闭。",
+  "kit.settings.startup-policy-on": "已被你的组织打开。"
 }
