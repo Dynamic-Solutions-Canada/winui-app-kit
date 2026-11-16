@@ -21,22 +21,21 @@ public readonly record struct TrayAnchor(int X, int Y);
 /// button-up of the double-click is swallowed so it can't toggle anything a second time. Only a
 /// button-up within the system double-click time is swallowed, so if that button-up never reaches
 /// the icon the next real click still counts.
+/// <para>
+/// One icon: use the constructor. Several icons on one host window: create a <see cref="TrayIconHost"/>
+/// and call <see cref="TrayIconHost.Add"/> for each.
+/// </para>
 /// </summary>
 public sealed class TrayIcon : IDisposable
 {
     private static readonly NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
-    private const uint IconUid = 1;
-    private static readonly UIntPtr SubclassId = 0x7AA1;
 
-    private readonly IntPtr _hwnd;
-    private readonly Guid _guid;
-    private readonly DispatcherQueue _dispatcher;
-    private readonly SUBCLASSPROC _wndProc;   // held in a field so the GC can't collect the delegate
-    private readonly int _wmCallback, _wmTaskbarCreated;
+    private readonly TrayIconHost _host;
+    private readonly bool _ownsHost;
 
     private IntPtr _hIcon;
     private string _tooltip = "";
-    private bool _added, _disposed;
+    private bool _added, _disposed, _visible = true;
 
     /// <summary>
     /// Until when (Environment.TickCount64) a button-up is the tail of a double-click and is ignored.
@@ -44,18 +43,58 @@ public sealed class TrayIcon : IDisposable
     /// </summary>
     private long _swallowUpUntilMs;
 
+    /// <summary>Create an app's single tray icon, with a host of its own.</summary>
     /// <param name="hostHwnd">The window that receives tray messages (lives as long as the icon).</param>
     /// <param name="id">Stable per-app GUID. Never reuse another app's GUID: Windows treats them as the same icon.</param>
     /// <param name="callbackMessageName">App-unique name for the registered callback message.</param>
     public TrayIcon(IntPtr hostHwnd, Guid id, string callbackMessageName)
     {
-        _hwnd = hostHwnd;
-        _guid = id;
-        _dispatcher = DispatcherQueue.GetForCurrentThread();
-        _wmCallback = RegisterWindowMessage(callbackMessageName);
-        _wmTaskbarCreated = RegisterWindowMessage("TaskbarCreated");
-        _wndProc = WndProc;
-        SetWindowSubclass(_hwnd, _wndProc, SubclassId, 0);
+        _host = new TrayIconHost(hostHwnd, callbackMessageName);
+        _ownsHost = true;
+        Uid = 1;
+        Id = id;
+        _host.Adopt(this);
+    }
+
+    /// <summary>An icon created by <see cref="TrayIconHost.Add"/>.</summary>
+    internal TrayIcon(TrayIconHost host, uint uid, Guid id, bool ownsHost)
+    {
+        _host = host;
+        _ownsHost = ownsHost;
+        Uid = uid;
+        Id = id;
+    }
+
+    /// <summary>The icon's stable GUID.</summary>
+    public Guid Id { get; }
+
+    /// <summary>The icon's number on its host window, which tray messages carry.</summary>
+    internal uint Uid { get; }
+
+    /// <summary>
+    /// Whether the icon is in the tray. Hiding removes it but keeps its image and tooltip, so showing
+    /// it again needs no new <see cref="Update"/>. New icons are visible.
+    /// </summary>
+    public bool IsVisible
+    {
+        get => _visible;
+        set
+        {
+            if (_visible == value || _disposed)
+            {
+                return;
+            }
+
+            _visible = value;
+            if (!value)
+            {
+                Delete();
+            }
+            else if (_hIcon != IntPtr.Zero)
+            {
+                Add();
+            }
+        }
     }
 
     /// <summary>Left click (also the first click of a double-click).</summary>
@@ -119,7 +158,11 @@ public sealed class TrayIcon : IDisposable
         _hIcon = newIcon;
         _tooltip = tooltip.Length > 127 ? tooltip[..127] : tooltip;
 
-        if (_added)
+        if (!_visible)
+        {
+            // Kept for when the icon is shown again.
+        }
+        else if (_added)
         {
             var data = Data();
             if (!Shell_NotifyIcon(NIM_MODIFY, ref data))
@@ -145,9 +188,9 @@ public sealed class TrayIcon : IDisposable
         var id = new NOTIFYICONIDENTIFIER
         {
             cbSize = (uint)Marshal.SizeOf<NOTIFYICONIDENTIFIER>(),
-            hWnd = _hwnd,
-            uID = IconUid,
-            guidItem = _guid,
+            hWnd = _host.Hwnd,
+            uID = Uid,
+            guidItem = Id,
         };
         if (Shell_NotifyIconGetRect(ref id, out var r) == 0 && r.Right > r.Left && r.Bottom > r.Top)
         {
@@ -167,28 +210,45 @@ public sealed class TrayIcon : IDisposable
 
         _disposed = true;
         Delete();
-        RemoveWindowSubclass(_hwnd, _wndProc, SubclassId);
+        _host.Remove(this);
         if (_hIcon != IntPtr.Zero)
         {
             DestroyIcon(_hIcon);
         }
 
         _hIcon = IntPtr.Zero;
+        if (_ownsHost)
+        {
+            _host.Dispose();
+        }
     }
+
+    /// <summary>Explorer restarted: add the icon again if it is meant to be showing.</summary>
+    internal void Readd()
+    {
+        if (!_disposed && _visible && _hIcon != IntPtr.Zero)
+        {
+            Add();
+        }
+    }
+
+    internal void RaiseRenderNeeded() => RenderNeeded?.Invoke();
+
+    internal void RaiseDisplayChanged() => DisplayChanged?.Invoke();
 
     // ── Shell registration ───────────────────────────────────────────────
     private NOTIFYICONDATA Data() => new()
     {
         cbSize = (uint)Marshal.SizeOf<NOTIFYICONDATA>(),
-        hWnd = _hwnd,
-        uID = IconUid,
+        hWnd = _host.Hwnd,
+        uID = Uid,
         uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP | NIF_GUID,
-        uCallbackMessage = (uint)_wmCallback,
+        uCallbackMessage = (uint)_host.CallbackMessage,
         hIcon = _hIcon,
         szTip = _tooltip,
         szInfo = "",
         szInfoTitle = "",
-        guidItem = _guid,
+        guidItem = Id,
     };
 
     private void Add()
@@ -209,7 +269,7 @@ public sealed class TrayIcon : IDisposable
         {
             cbSize = (uint)Marshal.SizeOf<NOTIFYICONDATA>(),
             uFlags = NIF_GUID,
-            guidItem = _guid,
+            guidItem = Id,
             szTip = "",
             szInfo = "",
             szInfoTitle = "",
@@ -218,39 +278,8 @@ public sealed class TrayIcon : IDisposable
         _added = false;
     }
 
-    // ── Window procedure ─────────────────────────────────────────────────
-    // Work is deferred with TryEnqueue: showing windows or menus from inside the window procedure
-    // re-enters the message loop and misbehaves.
-    private IntPtr WndProc(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam, UIntPtr id, UIntPtr refData)
-    {
-        if (_wmCallback != 0 && (int)msg == _wmCallback)
-        {
-            HandleTrayNotification((int)(lParam.ToInt64() & 0xFFFF));
-            return IntPtr.Zero;
-        }
-
-        if (_wmTaskbarCreated != 0 && (int)msg == _wmTaskbarCreated)
-        {
-            // Explorer restarted: the icon is gone and must be added again.
-            _dispatcher.TryEnqueue(Add);
-        }
-        else if (msg == WM_DISPLAYCHANGE)
-        {
-            _dispatcher.TryEnqueue(() =>
-            {
-                DisplayChanged?.Invoke();
-                RenderNeeded?.Invoke();
-            });
-        }
-        else if (msg == WM_DPICHANGED || msg == WM_SETTINGCHANGE)
-        {
-            _dispatcher.TryEnqueue(() => RenderNeeded?.Invoke());
-        }
-
-        return DefSubclassProc(hwnd, msg, wParam, lParam);
-    }
-
-    private void HandleTrayNotification(int notification)
+    /// <summary>A mouse message for this icon, from its host's window procedure.</summary>
+    internal void HandleNotification(int notification)
     {
         switch (notification)
         {
@@ -261,19 +290,19 @@ public sealed class TrayIcon : IDisposable
                     return;
                 }
                 var clickAnchor = GetAnchor();
-                _dispatcher.TryEnqueue(() => Clicked?.Invoke(clickAnchor));
+                _host.Dispatcher.TryEnqueue(() => Clicked?.Invoke(clickAnchor));
                 break;
 
             case WM_LBUTTONDBLCLK:
                 _swallowUpUntilMs = Environment.TickCount64 + GetDoubleClickTime();
                 var doubleAnchor = GetAnchor();
-                _dispatcher.TryEnqueue(() => DoubleClicked?.Invoke(doubleAnchor));
+                _host.Dispatcher.TryEnqueue(() => DoubleClicked?.Invoke(doubleAnchor));
                 break;
 
             case WM_RBUTTONUP:
             case WM_CONTEXTMENU:
                 GetCursorPos(out var pt);
-                _dispatcher.TryEnqueue(() => ContextMenuRequested?.Invoke(pt.X, pt.Y));
+                _host.Dispatcher.TryEnqueue(() => ContextMenuRequested?.Invoke(pt.X, pt.Y));
                 break;
         }
     }

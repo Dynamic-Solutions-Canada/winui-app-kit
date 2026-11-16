@@ -7,6 +7,7 @@ Shared plumbing for small WinUI 3 desktop apps that live in the system tray: the
 | Area | Type | What it does |
 |---|---|---|
 | Tray | `TrayIcon` | Notification-area icon with a stable GUID, re-added after Explorer restarts, crisp at any scaling, click / double-click / context-menu events |
+| Tray | `TrayIconHost` | Several tray icons on one host window, each with its own stable GUID, clicks and visibility |
 | Tray | `TrayMenu` | Native right-click menu that follows dark mode |
 | Tray | `TrayIconRasterizer` | Turns tray artwork drawn in code into a crisp PNG at the tray's exact pixel size, with the taskbar ink colours and a rounded-rectangle helper |
 | Windows | `FlyoutController` | Turns a `Window` into a tray flyout: acrylic, rounded corners, placed by the taskbar, dismissed on focus loss or Esc, parked off-screen for instant reopening |
@@ -304,6 +305,27 @@ _host.AddExitStep("remove the tray icon", _tray.Dispose);
 - **Exit:** `Exit` runs every exit step in the order added (a failing step is logged and the rest still run), flushes the log, then ends the process. Put all teardown in exit steps (closing connections, unregistering notifications, removing the tray icon), never after `Exit`.
 - **Confirmations:** `ConfirmDialog.ConfirmAsync(window, title, body, confirmText)`. Name the action on the confirm button; the question and that label come from the app's own catalogs, and Cancel is the kit's shared label unless the app passes `cancelText`.
 - **Tray icon:** `TrayIconRasterizer.Render(TrayIcon.IconPixelSize, (g, side) => ...)` draws the app's artwork on a canvas `side` pixels square, using `Ink` and `Surface` for taskbar-aware colours. Re-render on `TrayIcon.RenderNeeded` and when the taskbar colour changes.
+
+### Several tray icons
+
+An app with more than one icon (one per launcher, say) creates a `TrayIconHost` on its host window and adds an icon for each. Every icon has the same events and `Update` as a single `TrayIcon`, and `IsVisible` hides or shows it without losing its image:
+
+```csharp
+_trayHost = new TrayIconHost(_host.Hwnd, "MyApp_TrayCallback");
+foreach (var launcher in settings.Launchers)
+{
+    var icon = _trayHost.Add(TrayIconHost.GuidFromName("MyApp.Tray." + launcher.Id));
+    icon.Clicked += anchor => ShowFlyout(launcher, anchor);
+    icon.RenderNeeded += () => icon.Update(Render(launcher), launcher.Name);
+    icon.IsVisible = launcher.ShowInTray;
+    icon.Update(Render(launcher), launcher.Name);
+}
+_host.AddExitStep("remove the tray icons", _trayHost.Dispose);
+```
+
+- **Stable identity:** each icon's GUID must never change, because Windows remembers the user's show-or-hide choice by it. `GuidFromName` derives one from a name the app chooses (an MD5 name hash with version-3 bits), so the same launcher always gets the same icon. A launcher whose id is already a GUID can use it directly.
+- **One listener:** the host listens on the window once, routes each click to its icon, re-adds every visible icon when Explorer restarts, and raises `RenderNeeded` and `DisplayChanged` on itself and on every icon.
+- **Single icons:** `new TrayIcon(hwnd, guid, callbackMessageName)` still creates an app's single icon, with a host of its own.
 
 ## Checking for updates
 
