@@ -6,12 +6,15 @@
 # The library targets Windows, so EnableWindowsTargeting lets the SDK restore and load it on Linux;
 # this is enough for `dotnet format` and portable test projects, not for a Windows compile.
 #
+# The repo is the folder this runs in (npm sets it to the package root), never this script's own path:
+# apps call the kit's copy, external/winui-app-kit/scripts/dotnet, and it must use the app's global.json.
+#
 # Environment overrides:
 #   KIT_DOTNET_MEMORY  hard memory cap for the container (default 3g, no swap)
 #   NUGET_PACKAGES     package cache shared with the container (default ~/.nuget/packages)
 set -euo pipefail
 
-repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+repo_root="$(pwd)"
 export EnableWindowsTargeting=true
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
 export DOTNET_NOLOGO=1
@@ -27,9 +30,13 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 
 # The image tag is the exact SDK version global.json pins, so the container matches CI.
+if [[ ! -f "$repo_root/global.json" ]]; then
+    printf 'scripts/dotnet: run this from a repo root with a global.json (npm does this for package scripts); %s has none.\n' "$repo_root" >&2
+    exit 1
+fi
 sdk_version="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$repo_root/global.json" | head -1)"
 if [[ -z "$sdk_version" ]]; then
-    printf 'scripts/dotnet: could not read the SDK version from global.json.\n' >&2
+    printf 'scripts/dotnet: could not read the SDK version from %s/global.json.\n' "$repo_root" >&2
     exit 1
 fi
 

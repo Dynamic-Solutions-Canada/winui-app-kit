@@ -88,6 +88,7 @@ Four imports give the app the family's build settings. Each goes in the file nam
 
 Then, in the app:
 
+- **Tests and the .NET helper:** call the kit's `scripts/run-tests` and `scripts/dotnet` from the app's npm scripts too, for example `"test": "external/winui-app-kit/scripts/run-tests"`, and delete any copies. Like the wrapper, both work on the folder npm runs them in: `run-tests` runs every harness under the app's own `tests/` and fails when it finds none, so a test command that ran nothing never passes. An app with no harness yet passes `--allow-none` until it adds one. `dotnet` uses the app's `global.json`.
 - **Windows build commands:** the kit holds the one `scripts/windows-build` wrapper (SCRIPT-6). The app deletes its own copy and calls the kit's from its npm scripts, for example `"verify:desktop": "external/winui-app-kit/scripts/windows-build --build-only --configuration Debug"`. The wrapper builds the folder it runs in, which npm sets to the package root, and stops unless that folder has a `windows-build.json`. A repo with steps to run first, such as generated files, runs them in its own npm script before calling the wrapper. `WINDOWS_BUILD_TOOLS` overrides where the build tooling is checked out.
 
 - **Project files:** `PackageReference` items carry no `Version` (central package management supplies it). Remove `Nullable`, `ImplicitUsings` and `LangVersion`, and the platform auto-detect block in `Directory.Build.props`; the shared props set them.
