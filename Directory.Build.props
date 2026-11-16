@@ -8,4 +8,21 @@
     <Platform Condition="'$(PROCESSOR_ARCHITECTURE)' == 'ARM64'">ARM64</Platform>
     <Platform Condition="'$(PROCESSOR_ARCHITECTURE)' != 'ARM64'">x64</Platform>
   </PropertyGroup>
+
+  <!--
+    Analyzers and code style (STYLE-7). The .editorconfig rules are reported by a normal build.
+    These also apply when an app builds the kit through its ProjectReference, so the kit must stay
+    warning-free for every app's Release build.
+  -->
+  <PropertyGroup>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <!-- Pinned to the target framework's rule set, so a newer SDK cannot add warnings (errors in Release) to a build nobody changed. -->
+    <AnalysisLevel>10.0</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+
+  <!-- Warnings fail CI and Release builds; Debug leaves them as warnings so work in progress compiles (D-091). -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release' Or '$(CI)' == 'true'">
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
 </Project>

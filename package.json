@@ -1,0 +1,11 @@
+{
+  "name": "winui-app-kit",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "format": "scripts/dotnet format WinUIAppKit/WinUIAppKit.csproj",
+    "format:check": "scripts/dotnet format WinUIAppKit/WinUIAppKit.csproj --verify-no-changes",
+    "test": "scripts/run-tests",
+    "validate": "npm run format:check && npm test"
+  }
+}

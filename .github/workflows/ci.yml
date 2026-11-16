@@ -1,0 +1,85 @@
+name: CI
+
+# The gate for every push to main and every pull request (CI-1). The Linux job runs the same
+# `npm run validate` a developer runs. The Windows compile runs only when files that affect the
+# build change (CI-3, D-024), because Windows runner minutes cost more.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up .NET from global.json
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Run the gate
+        run: npm run validate
+
+  changes:
+    name: Detect build changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # The path filter lists a pull request's files through the API.
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      build: ${{ steps.filter.outputs.build }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Filter paths
+        id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            build:
+              - 'WinUIAppKit/**'
+              - 'Directory.Build.props'
+              - 'global.json'
+              - '.editorconfig'
+              - '.github/workflows/ci.yml'
+
+  windows-compile:
+    name: Compile (${{ matrix.platform }})
+    needs: changes
+    if: needs.changes.outputs.build == 'true'
+    runs-on: windows-2025
+    # A cold restore of the Windows App SDK plus one library compile; well under this cap.
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [x64, ARM64]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up .NET from global.json
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      # Called directly: the WSL build bridge that local Windows builds use is not available on a runner.
+      # Release, so warnings are errors (STYLE-7).
+      - name: Compile the library
+        run: dotnet build WinUIAppKit/WinUIAppKit.csproj --configuration Release -p:Platform=${{ matrix.platform }}

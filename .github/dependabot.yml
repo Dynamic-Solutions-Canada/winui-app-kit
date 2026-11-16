@@ -1,0 +1,25 @@
+version: 2
+
+updates:
+  - package-ecosystem: nuget
+    directories:
+      - "/"
+      - "/WinUIAppKit"
+    schedule:
+      interval: weekly
+    groups:
+      nuget:
+        patterns: ["*"]
+    ignore:
+      # The kit stays on the Windows App SDK 1.8 line while every consuming app ships with
+      # Microsoft.WindowsAppRuntime.1.8; moving off it means updating each app's manifest dependency.
+      - dependency-name: Microsoft.WindowsAppSDK
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: ["*"]

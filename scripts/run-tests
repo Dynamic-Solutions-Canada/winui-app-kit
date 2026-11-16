@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Run every test project under tests/ (TEST-5): found by walking the folder, never a hand-kept list.
+# Each project runs through scripts/dotnet, so the same command works on Linux and in CI.
+set -euo pipefail
+
+repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$repo_root"
+
+# Build output folders can hold copied project files; skip them.
+mapfile -t projects < <(
+    find tests -name '*.csproj' -not -path '*/bin/*' -not -path '*/obj/*' 2>/dev/null | sort
+)
+
+if [[ ${#projects[@]} -eq 0 ]]; then
+    printf 'run-tests: no test projects under tests/, so there is nothing to run.\n'
+    exit 0
+fi
+
+for project in "${projects[@]}"; do
+    printf 'run-tests: %s\n' "$project"
+    scripts/dotnet test "$project"
+done

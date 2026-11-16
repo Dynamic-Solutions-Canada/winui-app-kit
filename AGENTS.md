@@ -35,7 +35,15 @@ The kit owns the plumbing below and nothing else: no app's pages, settings field
 
 ## Commands
 
-There is no build or test of the kit's own yet. To compile a change, build a consuming app against this working tree with that app's `verify:desktop` script, using a copy of the app rather than editing its submodule checkout. That proves the kit compiles and the app still builds against it; it does not prove behaviour. Tray, flyout and menu behaviour can only be checked in an installed app.
+| Command | Proves | Does not prove |
+| --- | --- | --- |
+| `npm run validate` | The gate CI runs on Linux: `format:check` (whitespace, `.editorconfig` style and analyzers through `dotnet format`) and `test` | That the library compiles for Windows |
+| `npm run format` | Rewrites files to the `.editorconfig` style | Anything; review the diff |
+| `npm test` | Every test project under `tests/` passes (none exist yet) | Windows-only behaviour |
+
+`scripts/dotnet` uses the host .NET SDK when there is one, otherwise the SDK container matching `global.json` (Docker needed). The Windows compile for x64 and ARM64 runs in CI (`windows-compile` in `.github/workflows/ci.yml`). Release and CI builds treat warnings as errors, and so does every app's Release build of the kit, so keep the kit warning-free.
+
+To check a change against an app, copy the app into `.artifacts/` with this working tree in place of its `external/winui-app-kit`, then run the app's `verify:desktop` there. Never edit an app's submodule checkout. Tray, flyout and menu behaviour can only be checked in an installed app.
 
 ## Guidance map
 
@@ -53,3 +61,5 @@ There is no build or test of the kit's own yet. To compile a change, build a con
 | How an app adds or references the kit, or the target framework | README "Using it" |
 | The Windows App SDK line | The rule above and README "Using it" |
 | A rule for kit changes | README "Rules for changes", or "Conventions and gotchas" above if only an agent needs it |
+| A script in `package.json` or `scripts/`, or a CI job | The Commands table above |
+| `.editorconfig` | Nothing here, but every app copies it from the next tag: say so in the release notes |
