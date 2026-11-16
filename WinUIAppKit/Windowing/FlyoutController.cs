@@ -47,7 +47,10 @@ public sealed class FlyoutController
         SetWindowSubclass(_hwnd, _wndProc, SubclassId, 0);
         window.Activated += (_, e) =>
         {
-            if (e.WindowActivationState == WindowActivationState.Deactivated && !_isShowing) Dismiss();
+            if (e.WindowActivationState == WindowActivationState.Deactivated && !_isShowing)
+            {
+                Dismiss();
+            }
         };
 
         // Warm up: create the composition surfaces now, cloaked and parked off-screen.
@@ -92,7 +95,11 @@ public sealed class FlyoutController
             Dismiss();
             return;
         }
-        if (Environment.TickCount64 - _dismissedAtMs < (long)ReopenGuard.TotalMilliseconds) return;
+        if (Environment.TickCount64 - _dismissedAtMs < (long)ReopenGuard.TotalMilliseconds)
+        {
+            return;
+        }
+
         Show(anchorX, anchorY);
     }
 
@@ -124,12 +131,20 @@ public sealed class FlyoutController
 
         void Reveal()
         {
-            if (done) return;
+            if (done)
+            {
+                return;
+            }
+
             done = true;
             Microsoft.UI.Xaml.Media.CompositionTarget.Rendering -= OnRendering;
             fallback.Stop();
 
-            if (generation != _revealGeneration) return;   // superseded by a newer Show
+            if (generation != _revealGeneration)
+            {
+                return;   // superseded by a newer Show
+            }
+
             if (!IsOpen)
             {
                 _isShowing = false;   // dismissed before it appeared
@@ -146,7 +161,10 @@ public sealed class FlyoutController
 
         void OnRendering(object? sender, object e)
         {
-            if (++frames >= 2) Reveal();
+            if (++frames >= 2)
+            {
+                Reveal();
+            }
         }
 
         Microsoft.UI.Xaml.Media.CompositionTarget.Rendering += OnRendering;
@@ -159,14 +177,22 @@ public sealed class FlyoutController
     /// <summary>Re-measure and re-place an open flyout after its content changed size.</summary>
     public void UpdateSize()
     {
-        if (!IsOpen || _anchor is not { } a) return;
+        if (!IsOpen || _anchor is not { } a)
+        {
+            return;
+        }
+
         PlaceAtAnchor(a.X, a.Y, 0);
     }
 
     /// <summary>Close the flyout (cloak and park it). Safe to call when already closed.</summary>
     public void Dismiss()
     {
-        if (!IsOpen) return;
+        if (!IsOpen)
+        {
+            return;
+        }
+
         IsOpen = false;
         _dismissedAtMs = Environment.TickCount64;
         Park();
@@ -179,7 +205,11 @@ public sealed class FlyoutController
     /// </summary>
     public void Park()
     {
-        if (IsOpen) return;
+        if (IsOpen)
+        {
+            return;
+        }
+
         Cloak(_hwnd, true);
 
         // Keep the last shown size so the next open doesn't re-lay out from scratch. Before the first

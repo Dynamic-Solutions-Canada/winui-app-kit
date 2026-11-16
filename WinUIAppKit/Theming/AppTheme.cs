@@ -32,7 +32,11 @@ public static class AppTheme
     /// <summary>Change the choice and notify listeners. A no-op when the value is unchanged.</summary>
     public static void Set(AppThemeChoice choice)
     {
-        if (choice == Current) return;
+        if (choice == Current)
+        {
+            return;
+        }
+
         Current = choice;
         Changed?.Invoke();
     }
@@ -50,7 +54,10 @@ public static class AppTheme
     {
         void Apply()
         {
-            if (window.Content is FrameworkElement root) root.RequestedTheme = ToElementTheme(Current);
+            if (window.Content is FrameworkElement root)
+            {
+                root.RequestedTheme = ToElementTheme(Current);
+            }
         }
 
         Apply();
@@ -61,8 +68,16 @@ public static class AppTheme
     /// <summary>True when the effective app theme is dark (the explicit choice, else Windows' app mode).</summary>
     public static bool IsDark()
     {
-        if (Current == AppThemeChoice.Light) return false;
-        if (Current == AppThemeChoice.Dark) return true;
+        if (Current == AppThemeChoice.Light)
+        {
+            return false;
+        }
+
+        if (Current == AppThemeChoice.Dark)
+        {
+            return true;
+        }
+
         var fg = s_uiSettings.GetColorValue(global::Windows.UI.ViewManagement.UIColorType.Foreground);
         return fg.R > 128;
     }

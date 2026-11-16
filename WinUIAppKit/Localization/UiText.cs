@@ -65,7 +65,10 @@ public static partial class UiText
     {
         Override = Languages.NormalizeOverride(language);
         string resolved = Resolve();
-        if (resolved == Locale) return;
+        if (resolved == Locale)
+        {
+            return;
+        }
 
         Locale = resolved;
         Logger.Info("Interface language changed to {Locale}", Locale);
@@ -75,10 +78,20 @@ public static partial class UiText
     /// <summary>The text for <paramref name="key"/> in the current language.</summary>
     public static string Get(string key)
     {
-        if (s_languages is null) return key;
+        if (s_languages is null)
+        {
+            return key;
+        }
 
-        if (ReadCatalog(Languages.CatalogFor(Locale)).TryGetValue(key, out string? text)) return text;
-        if (ReadCatalog(Languages.CatalogFor(Languages.Default)).TryGetValue(key, out text)) return text;
+        if (ReadCatalog(Languages.CatalogFor(Locale)).TryGetValue(key, out string? text))
+        {
+            return text;
+        }
+
+        if (ReadCatalog(Languages.CatalogFor(Languages.Default)).TryGetValue(key, out text))
+        {
+            return text;
+        }
 
         Logger.Warn("Missing interface text {Key}", key);
         return key;
@@ -87,7 +100,11 @@ public static partial class UiText
     /// <summary>The default-language (source) text for <paramref name="key"/>, for matching fixed English copy.</summary>
     public static string Source(string key)
     {
-        if (s_languages is null) return key;
+        if (s_languages is null)
+        {
+            return key;
+        }
+
         return ReadCatalog(Languages.CatalogFor(Languages.Default)).GetValueOrDefault(key) ?? key;
     }
 
@@ -114,7 +131,10 @@ public static partial class UiText
         try
         {
             if (AppEnvironment.IsPackaged)
+            {
                 return global::Windows.Globalization.ApplicationLanguages.Languages.ToArray();
+            }
+
             return global::Windows.System.UserProfile.GlobalizationPreferences.Languages.ToArray();
         }
         catch (Exception ex)
@@ -131,7 +151,10 @@ public static partial class UiText
     {
         lock (s_catalogs)
         {
-            if (s_catalogs.TryGetValue(catalog, out var cached)) return cached;
+            if (s_catalogs.TryGetValue(catalog, out var cached))
+            {
+                return cached;
+            }
 
             Dictionary<string, string> entries;
             try

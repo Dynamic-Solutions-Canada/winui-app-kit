@@ -26,6 +26,8 @@ public static class SingleInstance
     {
         IntPtr existing = FindWindow(null, hostWindowTitle);
         if (existing != IntPtr.Zero)
+        {
             PostMessage(existing, (uint)RegisterWindowMessage(messageName), 0, 0);
+        }
     }
 }

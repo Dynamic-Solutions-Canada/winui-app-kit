@@ -103,10 +103,17 @@ public sealed class TrayIcon : IDisposable
     /// </summary>
     public void Update(byte[] png, string tooltip)
     {
-        if (_disposed) return;
+        if (_disposed)
+        {
+            return;
+        }
+
         var size = IconPixelSize;
         var newIcon = CreateIconFromResourceEx(png, (uint)png.Length, true, 0x00030000, size, size, 0);
-        if (newIcon == IntPtr.Zero) Logger.Warn("CreateIconFromResourceEx failed");
+        if (newIcon == IntPtr.Zero)
+        {
+            Logger.Warn("CreateIconFromResourceEx failed");
+        }
 
         var oldIcon = _hIcon;
         _hIcon = newIcon;
@@ -115,14 +122,20 @@ public sealed class TrayIcon : IDisposable
         if (_added)
         {
             var data = Data();
-            if (!Shell_NotifyIcon(NIM_MODIFY, ref data)) Add();
+            if (!Shell_NotifyIcon(NIM_MODIFY, ref data))
+            {
+                Add();
+            }
         }
         else
         {
             Add();
         }
 
-        if (oldIcon != IntPtr.Zero) DestroyIcon(oldIcon);
+        if (oldIcon != IntPtr.Zero)
+        {
+            DestroyIcon(oldIcon);
+        }
     }
 
     /// <summary>The icon's centre on screen, or the cursor position if the shell can't report it.</summary>
@@ -137,18 +150,29 @@ public sealed class TrayIcon : IDisposable
             guidItem = _guid,
         };
         if (Shell_NotifyIconGetRect(ref id, out var r) == 0 && r.Right > r.Left && r.Bottom > r.Top)
+        {
             return new TrayAnchor((r.Left + r.Right) / 2, (r.Top + r.Bottom) / 2);
+        }
+
         return new TrayAnchor(pt.X, pt.Y);
     }
 
     /// <summary>Remove the icon from the tray and stop listening. Safe to call more than once.</summary>
     public void Dispose()
     {
-        if (_disposed) return;
+        if (_disposed)
+        {
+            return;
+        }
+
         _disposed = true;
         Delete();
         RemoveWindowSubclass(_hwnd, _wndProc, SubclassId);
-        if (_hIcon != IntPtr.Zero) DestroyIcon(_hIcon);
+        if (_hIcon != IntPtr.Zero)
+        {
+            DestroyIcon(_hIcon);
+        }
+
         _hIcon = IntPtr.Zero;
     }
 
@@ -173,7 +197,10 @@ public sealed class TrayIcon : IDisposable
         Delete();
         var data = Data();
         _added = Shell_NotifyIcon(NIM_ADD, ref data);
-        if (!_added) Logger.Warn("Shell_NotifyIcon(NIM_ADD) failed");
+        if (!_added)
+        {
+            Logger.Warn("Shell_NotifyIcon(NIM_ADD) failed");
+        }
     }
 
     private void Delete()

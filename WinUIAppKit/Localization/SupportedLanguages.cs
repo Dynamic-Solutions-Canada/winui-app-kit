@@ -31,7 +31,9 @@ public sealed class SupportedLanguages
         }
 
         if (!_catalogs.ContainsKey(defaultLanguage))
+        {
             throw new ArgumentException("The default language must be one of the supported languages.", nameof(defaultLanguage));
+        }
 
         Default = defaultLanguage;
         Identities = order;
@@ -52,7 +54,10 @@ public sealed class SupportedLanguages
     /// <summary>Returns the canonical spelling of a supported identity, or null for automatic/unknown values.</summary>
     public string? NormalizeOverride(string? language)
     {
-        if (string.IsNullOrWhiteSpace(language)) return null;
+        if (string.IsNullOrWhiteSpace(language))
+        {
+            return null;
+        }
 
         string tag = language.Trim();
         return Identities.FirstOrDefault(supported => supported.Equals(tag, StringComparison.OrdinalIgnoreCase));
@@ -69,7 +74,10 @@ public sealed class SupportedLanguages
     {
         foreach (string preference in preferences)
         {
-            if (string.IsNullOrWhiteSpace(preference)) continue;
+            if (string.IsNullOrWhiteSpace(preference))
+            {
+                continue;
+            }
 
             // Unicode extensions (-u-ca-..., -x-...) describe formatting, not wording.
             string[] parts = preference.Trim().Split('-');
@@ -79,14 +87,24 @@ public sealed class SupportedLanguages
 
             foreach (string supported in Identities)
             {
-                if (string.Equals(tag, supported, StringComparison.OrdinalIgnoreCase)) return supported;
+                if (string.Equals(tag, supported, StringComparison.OrdinalIgnoreCase))
+                {
+                    return supported;
+                }
             }
 
             string family = LanguageFamily(tag);
-            if (family.Length == 0) continue;
+            if (family.Length == 0)
+            {
+                continue;
+            }
+
             foreach (string supported in Identities)
             {
-                if (string.Equals(family, LanguageFamily(supported), StringComparison.OrdinalIgnoreCase)) return supported;
+                if (string.Equals(family, LanguageFamily(supported), StringComparison.OrdinalIgnoreCase))
+                {
+                    return supported;
+                }
             }
         }
 
@@ -98,7 +116,10 @@ public sealed class SupportedLanguages
     {
         string[] parts = tag.Split('-');
         if (parts.Length > 1 && parts[1].Equals("Latn", StringComparison.OrdinalIgnoreCase) && !HasScriptChoice(parts[0]))
+        {
             return string.Join("-", parts.Where((_, index) => index != 1));
+        }
+
         return tag;
     }
 
@@ -109,7 +130,10 @@ public sealed class SupportedLanguages
     private static string LanguageFamily(string tag)
     {
         string[] parts = tag.Split('-');
-        if (parts.Any(part => part.Length is < 1 or > 8 || !part.All(char.IsAsciiLetterOrDigit))) return "";
+        if (parts.Any(part => part.Length is < 1 or > 8 || !part.All(char.IsAsciiLetterOrDigit)))
+        {
+            return "";
+        }
 
         string language = parts[0].ToLowerInvariant();
         string? script = parts.Skip(1).FirstOrDefault(part => part.Length == 4 && part.All(char.IsAsciiLetter));
@@ -117,14 +141,22 @@ public sealed class SupportedLanguages
         if (language == "zh")
         {
             // An explicit script decides; otherwise Taiwan, Hong Kong and Macao imply Traditional.
-            if (script is not null) return "zh-" + script;
+            if (script is not null)
+            {
+                return "zh-" + script;
+            }
+
             bool traditional = parts.Any(part => part.Equals("TW", StringComparison.OrdinalIgnoreCase)
                                               || part.Equals("HK", StringComparison.OrdinalIgnoreCase)
                                               || part.Equals("MO", StringComparison.OrdinalIgnoreCase));
             return traditional ? "zh-Hant" : "zh-Hans";
         }
 
-        if (script?.Equals("Latn", StringComparison.OrdinalIgnoreCase) == true && !HasScriptChoice(language)) script = null;
+        if (script?.Equals("Latn", StringComparison.OrdinalIgnoreCase) == true && !HasScriptChoice(language))
+        {
+            script = null;
+        }
+
         return script is null ? language : language + "-" + script;
     }
 

@@ -52,7 +52,10 @@ public static class Localize
             s_bindings.RemoveAll(binding => !binding.Target.TryGetTarget(out _));
             foreach (var binding in s_bindings.ToArray())
             {
-                if (binding.Target.TryGetTarget(out var target)) Apply(target, binding.Property);
+                if (binding.Target.TryGetTarget(out var target))
+                {
+                    Apply(target, binding.Property);
+                }
             }
         };
     }
@@ -64,27 +67,64 @@ public static class Localize
     {
         // Prune dead entries occasionally so long-lived apps that rebuild views don't accumulate them.
         if (s_bindings.Count > 0 && s_bindings.Count % 256 == 0)
+        {
             s_bindings.RemoveAll(binding => !binding.Target.TryGetTarget(out _));
+        }
 
-        if (args.OldValue is null) s_bindings.Add(new Binding(new WeakReference<DependencyObject>(target), args.Property));
+        if (args.OldValue is null)
+        {
+            s_bindings.Add(new Binding(new WeakReference<DependencyObject>(target), args.Property));
+        }
+
         Apply(target, args.Property);
     }
 
     /// <summary>Write the current text for the target's key into the matching control property.</summary>
     private static void Apply(DependencyObject target, DependencyProperty property)
     {
-        if (target.GetValue(property) is not string key) return;
+        if (target.GetValue(property) is not string key)
+        {
+            return;
+        }
+
         string value = UiText.Get(key);
 
-        if (property == TextProperty && target is TextBlock text) text.Text = value;
-        else if (property == ContentProperty && target is ContentControl content) content.Content = value;
-        else if (property == HeaderProperty) ApplyHeader(target, value);
-        else if (property == OnContentProperty && target is ToggleSwitch on) on.OnContent = value;
-        else if (property == OffContentProperty && target is ToggleSwitch off) off.OffContent = value;
-        else if (property == PlaceholderProperty && target is TextBox box) box.PlaceholderText = value;
-        else if (property == PlaceholderProperty && target is ComboBox combo) combo.PlaceholderText = value;
-        else if (property == ToolTipProperty) ToolTipService.SetToolTip(target, value);
-        else if (property == NameProperty) AutomationProperties.SetName(target, value);
+        if (property == TextProperty && target is TextBlock text)
+        {
+            text.Text = value;
+        }
+        else if (property == ContentProperty && target is ContentControl content)
+        {
+            content.Content = value;
+        }
+        else if (property == HeaderProperty)
+        {
+            ApplyHeader(target, value);
+        }
+        else if (property == OnContentProperty && target is ToggleSwitch on)
+        {
+            on.OnContent = value;
+        }
+        else if (property == OffContentProperty && target is ToggleSwitch off)
+        {
+            off.OffContent = value;
+        }
+        else if (property == PlaceholderProperty && target is TextBox box)
+        {
+            box.PlaceholderText = value;
+        }
+        else if (property == PlaceholderProperty && target is ComboBox combo)
+        {
+            combo.PlaceholderText = value;
+        }
+        else if (property == ToolTipProperty)
+        {
+            ToolTipService.SetToolTip(target, value);
+        }
+        else if (property == NameProperty)
+        {
+            AutomationProperties.SetName(target, value);
+        }
     }
 
     private static void ApplyHeader(DependencyObject target, string value)

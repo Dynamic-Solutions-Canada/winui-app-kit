@@ -59,7 +59,10 @@ public sealed class TrayMenu
             int chosen = TrackPopupMenuEx(menu, TPM_RIGHTBUTTON | TPM_RETURNCMD | TPM_NONOTIFY, x, y, ownerHwnd, IntPtr.Zero);
             PostMessage(ownerHwnd, WM_NULL, 0, 0);
 
-            if (chosen > 0 && chosen <= _items.Count) _items[chosen - 1].OnClick?.Invoke();
+            if (chosen > 0 && chosen <= _items.Count)
+            {
+                _items[chosen - 1].OnClick?.Invoke();
+            }
         }
         finally
         {
@@ -73,7 +76,11 @@ public sealed class TrayMenu
     /// </summary>
     private static void EnableDarkMenus()
     {
-        if (s_darkModeEnabled) return;
+        if (s_darkModeEnabled)
+        {
+            return;
+        }
+
         s_darkModeEnabled = true;
         try
         {

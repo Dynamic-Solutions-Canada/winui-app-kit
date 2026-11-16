@@ -45,12 +45,19 @@ public sealed class JsonSettingsStore<T> where T : class, new()
     public T Load(out bool isFirstRun)
     {
         isFirstRun = !File.Exists(FilePath);
-        if (isFirstRun) return new T();
+        if (isFirstRun)
+        {
+            return new T();
+        }
 
         try
         {
             var loaded = JsonSerializer.Deserialize<T>(File.ReadAllText(FilePath), _options);
-            if (loaded != null) return loaded;
+            if (loaded != null)
+            {
+                return loaded;
+            }
+
             Logger.Warn("Settings file {Path} was empty", FilePath);
         }
         catch (Exception ex)
@@ -67,7 +74,10 @@ public sealed class JsonSettingsStore<T> where T : class, new()
         try
         {
             string? directory = Path.GetDirectoryName(FilePath);
-            if (directory != null) Directory.CreateDirectory(directory);
+            if (directory != null)
+            {
+                Directory.CreateDirectory(directory);
+            }
 
             string tmp = FilePath + ".tmp";
             File.WriteAllText(tmp, JsonSerializer.Serialize(settings, _options));

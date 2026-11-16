@@ -33,7 +33,10 @@ public sealed class StartupRegistration
     public bool IsSilentLaunch()
     {
         if (Environment.GetCommandLineArgs().Any(a => a.Equals(_silentArgument, StringComparison.OrdinalIgnoreCase)))
+        {
             return true;
+        }
+
         try
         {
             return Microsoft.Windows.AppLifecycle.AppInstance.GetCurrent().GetActivatedEventArgs().Kind
@@ -70,7 +73,9 @@ public sealed class StartupRegistration
 
         var task = await global::Windows.ApplicationModel.StartupTask.GetAsync(_taskId);
         if (enabled)
+        {
             return ToStatus(await task.RequestEnableAsync());
+        }
 
         // Disable() has no effect on a policy-enabled task. Query afresh rather than trusting this
         // object's State, so the caller shows what Windows actually holds now.
@@ -102,7 +107,9 @@ public sealed class StartupRegistration
             }
             var task = await global::Windows.ApplicationModel.StartupTask.GetAsync(_taskId);
             if (task.State == global::Windows.ApplicationModel.StartupTaskState.Disabled)
+            {
                 await task.RequestEnableAsync();
+            }
         }
         catch (Exception ex) { Logger.Warn(ex, "First-run startup registration failed"); }
     }
@@ -114,13 +121,21 @@ public sealed class StartupRegistration
     /// <param name="legacyNames">Older Run value names to remove in addition to the current one.</param>
     public void RemoveUnpackagedEntries(params string[] legacyNames)
     {
-        if (!AppEnvironment.IsPackaged) return;
+        if (!AppEnvironment.IsPackaged)
+        {
+            return;
+        }
+
         try
         {
             using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true);
             foreach (var name in legacyNames.Append(_runValueName))
             {
-                if (key?.GetValue(name) == null) continue;
+                if (key?.GetValue(name) == null)
+                {
+                    continue;
+                }
+
                 key.DeleteValue(name);
                 Logger.Info("Removed unpackaged Run entry {Name}", name);
             }
@@ -131,8 +146,14 @@ public sealed class StartupRegistration
     private void SetRunValue(bool enabled)
     {
         using var key = Registry.CurrentUser.CreateSubKey(RunKeyPath);
-        if (enabled) key.SetValue(_runValueName, $"\"{Environment.ProcessPath}\" {_silentArgument}");
-        else if (key.GetValue(_runValueName) != null) key.DeleteValue(_runValueName);
+        if (enabled)
+        {
+            key.SetValue(_runValueName, $"\"{Environment.ProcessPath}\" {_silentArgument}");
+        }
+        else if (key.GetValue(_runValueName) != null)
+        {
+            key.DeleteValue(_runValueName);
+        }
     }
 }
 

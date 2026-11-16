@@ -39,7 +39,10 @@ public static class WindowChrome
     public static void BringToFront(Window window)
     {
         if (AppWindowOf(window).Presenter is OverlappedPresenter { State: OverlappedPresenterState.Minimized } presenter)
+        {
             presenter.Restore();
+        }
+
         window.Activate();
         SetForegroundWindow(Hwnd(window));
     }
@@ -75,7 +78,11 @@ public static class WindowChrome
     public static WindowPlacement? CapturePlacement(Window window)
     {
         var appWindow = AppWindowOf(window);
-        if (appWindow.Presenter is not OverlappedPresenter { State: OverlappedPresenterState.Restored }) return null;
+        if (appWindow.Presenter is not OverlappedPresenter { State: OverlappedPresenterState.Restored })
+        {
+            return null;
+        }
+
         return new WindowPlacement
         {
             X = appWindow.Position.X,
@@ -107,7 +114,10 @@ public sealed class WindowIcon
     /// <summary>Apply a multi-size .ico file to the window (does nothing if the file is missing).</summary>
     public static void Apply(Window window, string icoPath)
     {
-        if (!File.Exists(icoPath)) return;
+        if (!File.Exists(icoPath))
+        {
+            return;
+        }
 
         var icon = new WindowIcon();
         var hwnd = WindowChrome.Hwnd(window);
@@ -132,14 +142,29 @@ public sealed class WindowIcon
 
     private void Send(IntPtr hwnd)
     {
-        if (_small != IntPtr.Zero) SendMessage(hwnd, WM_SETICON, ICON_SMALL, _small);
-        if (_big != IntPtr.Zero) SendMessage(hwnd, WM_SETICON, ICON_BIG, _big);
+        if (_small != IntPtr.Zero)
+        {
+            SendMessage(hwnd, WM_SETICON, ICON_SMALL, _small);
+        }
+
+        if (_big != IntPtr.Zero)
+        {
+            SendMessage(hwnd, WM_SETICON, ICON_BIG, _big);
+        }
     }
 
     private void Destroy()
     {
-        if (_small != IntPtr.Zero) DestroyIcon(_small);
-        if (_big != IntPtr.Zero) DestroyIcon(_big);
+        if (_small != IntPtr.Zero)
+        {
+            DestroyIcon(_small);
+        }
+
+        if (_big != IntPtr.Zero)
+        {
+            DestroyIcon(_big);
+        }
+
         _small = _big = IntPtr.Zero;
     }
 }
