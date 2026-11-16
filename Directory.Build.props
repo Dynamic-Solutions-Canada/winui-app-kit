@@ -10,6 +10,14 @@
   </PropertyGroup>
 
   <!--
+    The kit's one version source (REL-1): SemVer, matching the vX.Y.Z tag apps pin (KIT-6).
+    Bumped only by the release procedure, in the commit that adds release-notes/<version>.md.
+  -->
+  <PropertyGroup>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+
+  <!--
     Analyzers and code style (STYLE-7). The .editorconfig rules are reported by a normal build.
     These also apply when an app builds the kit through its ProjectReference, so the kit must stay
     warning-free for every app's Release build.
