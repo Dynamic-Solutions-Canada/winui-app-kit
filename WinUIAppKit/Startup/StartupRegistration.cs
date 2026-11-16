@@ -1,5 +1,4 @@
 using Microsoft.Win32;
-using Windows.ApplicationModel;
 
 namespace WinUIAppKit.Startup;
 
@@ -43,36 +42,50 @@ public sealed class StartupRegistration
         catch { return false; }
     }
 
-    /// <summary>Whether the app currently starts at sign-in.</summary>
-    public async Task<bool> IsEnabledAsync()
+    /// <summary>Whether, and on whose authority, the app starts at sign-in.</summary>
+    public async Task<StartupStatus> GetStatusAsync()
     {
         if (!AppEnvironment.IsPackaged)
         {
             using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath);
-            return key?.GetValue(_runValueName) != null;
+            return key?.GetValue(_runValueName) != null ? StartupStatus.Enabled : StartupStatus.Disabled;
         }
-        var task = await StartupTask.GetAsync(_taskId);
-        return task.State is StartupTaskState.Enabled or StartupTaskState.EnabledByPolicy;
+
+        var task = await global::Windows.ApplicationModel.StartupTask.GetAsync(_taskId);
+        return ToStatus(task.State);
     }
 
-    /// <summary>Turn starting at sign-in on or off. Returns the resulting state (the user or policy can refuse).</summary>
-    public async Task<bool> SetEnabledAsync(bool enabled)
+    /// <summary>
+    /// Turn starting at sign-in on or off and return the resulting status. Windows can refuse: a user
+    /// who turned the app off in Settings, or a policy, wins; the status says which, so the caller can
+    /// explain instead of silently flipping the switch back.
+    /// </summary>
+    public async Task<StartupStatus> SetEnabledAsync(bool enabled)
     {
         if (!AppEnvironment.IsPackaged)
         {
             SetRunValue(enabled);
-            return enabled;
+            return enabled ? StartupStatus.Enabled : StartupStatus.Disabled;
         }
 
-        var task = await StartupTask.GetAsync(_taskId);
-        if (!enabled)
-        {
-            task.Disable();
-            return false;
-        }
-        var state = await task.RequestEnableAsync();
-        return state is StartupTaskState.Enabled or StartupTaskState.EnabledByPolicy;
+        var task = await global::Windows.ApplicationModel.StartupTask.GetAsync(_taskId);
+        if (enabled)
+            return ToStatus(await task.RequestEnableAsync());
+
+        // Disable() has no effect on a policy-enabled task. Query afresh rather than trusting this
+        // object's State, so the caller shows what Windows actually holds now.
+        task.Disable();
+        return await GetStatusAsync();
     }
+
+    private static StartupStatus ToStatus(global::Windows.ApplicationModel.StartupTaskState state) => state switch
+    {
+        global::Windows.ApplicationModel.StartupTaskState.Enabled => StartupStatus.Enabled,
+        global::Windows.ApplicationModel.StartupTaskState.EnabledByPolicy => StartupStatus.EnabledByPolicy,
+        global::Windows.ApplicationModel.StartupTaskState.DisabledByUser => StartupStatus.DisabledByUser,
+        global::Windows.ApplicationModel.StartupTaskState.DisabledByPolicy => StartupStatus.DisabledByPolicy,
+        _ => StartupStatus.Disabled,
+    };
 
     /// <summary>
     /// First-run registration: enable the startup task only while it is still in its initial Disabled
@@ -87,8 +100,8 @@ public sealed class StartupRegistration
                 SetRunValue(true);
                 return;
             }
-            var task = await StartupTask.GetAsync(_taskId);
-            if (task.State == StartupTaskState.Disabled)
+            var task = await global::Windows.ApplicationModel.StartupTask.GetAsync(_taskId);
+            if (task.State == global::Windows.ApplicationModel.StartupTaskState.Disabled)
                 await task.RequestEnableAsync();
         }
         catch (Exception ex) { Logger.Warn(ex, "First-run startup registration failed"); }
@@ -121,4 +134,33 @@ public sealed class StartupRegistration
         if (enabled) key.SetValue(_runValueName, $"\"{Environment.ProcessPath}\" {_silentArgument}");
         else if (key.GetValue(_runValueName) != null) key.DeleteValue(_runValueName);
     }
+}
+
+/// <summary>Whether the app starts at sign-in, and who decided.</summary>
+public enum StartupStatus
+{
+    /// <summary>Off; the app may turn it on.</summary>
+    Disabled,
+
+    /// <summary>On; the app may turn it off.</summary>
+    Enabled,
+
+    /// <summary>Turned off by the user in Windows Settings; only they can turn it back on there.</summary>
+    DisabledByUser,
+
+    /// <summary>Turned off by policy; the app can't change it.</summary>
+    DisabledByPolicy,
+
+    /// <summary>Turned on by policy; the app can't change it.</summary>
+    EnabledByPolicy,
+}
+
+/// <summary>Helpers for <see cref="StartupStatus"/>.</summary>
+public static class StartupStatusExtensions
+{
+    /// <summary>True when the app starts at sign-in.</summary>
+    public static bool IsOn(this StartupStatus status) => status is StartupStatus.Enabled or StartupStatus.EnabledByPolicy;
+
+    /// <summary>True when the app can change it (no user-in-Settings or policy decision in the way).</summary>
+    public static bool CanChange(this StartupStatus status) => status is StartupStatus.Enabled or StartupStatus.Disabled;
 }

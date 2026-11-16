@@ -11,9 +11,9 @@ Shared plumbing for small WinUI 3 desktop apps that live in the system tray: the
 | Windows | `FlyoutController` | Turns a `Window` into a tray flyout: acrylic, rounded corners, placed by the taskbar, dismissed on focus loss or Esc, parked off-screen for instant reopening |
 | Windows | `WindowChrome`, `WindowIcon`, `WindowPlacement` | Sharp window icons, saved size and position (ignored if the monitor is gone), bring-to-front |
 | Settings | `JsonSettingsStore<T>` | Atomic JSON load/save of the app's own settings class |
-| Startup | `StartupRegistration` | Start with Windows for packaged (startup task) and unpackaged (Run key) builds |
+| Startup | `StartupRegistration`, `StartupStatus` | Start with Windows for packaged (startup task) and unpackaged (Run key) builds; reports when the user (in Windows Settings) or a policy decides instead of the app |
 | Theming | `AppTheme` | System / light / dark choice applied to every open window |
-| Localization | `SupportedLanguages`, `UiText`, `Localize` | Interface text from per-language JSON catalogs embedded in the app, chosen from the user's override or Windows' languages; XAML attached properties that relabel open windows live |
+| Localization | `SupportedLanguages`, `UiText`, `Localize`, `LocalizedMessage` | Interface text from per-language JSON catalogs embedded in the app, chosen from the user's override or Windows' languages; XAML attached properties that relabel open windows live; messages stored as key plus values so they follow a language change |
 | App | `AppEnvironment`, `SingleInstance` | Packaged or not, version, data folders, one running copy |
 
 Win32 declarations shared by these live in `Interop/NativeMethods.cs`.

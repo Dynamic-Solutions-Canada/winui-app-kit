@@ -10,15 +10,14 @@
     <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
     <LangVersion>preview</LangVersion>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <!-- Missing XML docs on public members are a style note here, not a build warning flood. -->
-    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <!-- Public members must be documented (CS1591 is a warning); only Interop/NativeMethods.cs opts out. -->
   </PropertyGroup>
 
   <ItemGroup>
     <!--
-      Pinned to the 1.8 line on purpose: every consuming app (Little Launcher, Repilot, Immich Drive,
-      Hub Display Switch, Persistent, WSL Monitor) ships against Microsoft.WindowsAppRuntime.1.8. An app
-      may reference a newer SDK itself; NuGet then resolves the higher version for both.
+      Pinned to the 1.8 line on purpose: every consuming app ships against
+      Microsoft.WindowsAppRuntime.1.8. An app may reference a newer SDK itself; NuGet then resolves
+      the higher version for both.
     -->
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260209005" />
     <PackageReference Include="NLog" Version="6.2.2" />

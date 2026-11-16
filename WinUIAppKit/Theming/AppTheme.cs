@@ -5,8 +5,13 @@ namespace WinUIAppKit.Theming;
 /// <summary>The user's theme choice. Values match the 0/1/2 integers older settings files stored.</summary>
 public enum AppThemeChoice
 {
+    /// <summary>Follow Windows' app mode.</summary>
     System = 0,
+
+    /// <summary>Always light.</summary>
     Light = 1,
+
+    /// <summary>Always dark.</summary>
     Dark = 2,
 }
 

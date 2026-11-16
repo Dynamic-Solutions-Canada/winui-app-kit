@@ -9,9 +9,16 @@ namespace WinUIAppKit.Windowing;
 /// <summary>A saved window position and size in physical pixels (serialized in app settings).</summary>
 public sealed class WindowPlacement
 {
+    /// <summary>Left edge in physical screen pixels.</summary>
     public int X { get; set; }
+
+    /// <summary>Top edge in physical screen pixels.</summary>
     public int Y { get; set; }
+
+    /// <summary>Width in physical pixels.</summary>
     public int Width { get; set; }
+
+    /// <summary>Height in physical pixels.</summary>
     public int Height { get; set; }
 }
 
@@ -21,8 +28,10 @@ public sealed class WindowPlacement
 /// </summary>
 public static class WindowChrome
 {
+    /// <summary>The window's Win32 handle.</summary>
     public static IntPtr Hwnd(Window window) => WindowNative.GetWindowHandle(window);
 
+    /// <summary>The window's <see cref="AppWindow"/> (presenter, size, icon, title bar).</summary>
     public static AppWindow AppWindowOf(Window window) =>
         AppWindow.GetFromWindowId(Microsoft.UI.Win32Interop.GetWindowIdFromWindow(Hwnd(window)));
 

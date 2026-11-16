@@ -7,6 +7,10 @@ namespace WinUIAppKit.Interop;
 /// <c>using static WinUIAppKit.Interop.NativeMethods;</c> and keep any app-specific interop in their
 /// own <c>NativeMethods</c> next to the feature that needs it.
 /// </summary>
+// The raw declarations below keep Win32's own names and are documented by Microsoft; restating each
+// one adds nothing. The helper methods at the end are documented. Every other kit file must document
+// its public members (CS1591 stays on for them).
+#pragma warning disable CS1591
 public static class NativeMethods
 {
     // ── Structs ─────────────────────────────────────────────────────────
@@ -129,9 +133,11 @@ public static class NativeMethods
     [DllImport("uxtheme.dll", EntryPoint = "#136")] public static extern void FlushMenuThemes();
 
     // ── Helpers ─────────────────────────────────────────────────────────
+    /// <summary>Add extended window style bits (WS_EX_*) to a window.</summary>
     public static void AddExStyle(IntPtr hwnd, int style) =>
         SetWindowLongPtr(hwnd, GWL_EXSTYLE, (IntPtr)((long)GetWindowLongPtr(hwnd, GWL_EXSTYLE) | (uint)style));
 
+    /// <summary>Remove extended window style bits (WS_EX_*) from a window.</summary>
     public static void RemoveExStyle(IntPtr hwnd, int style) =>
         SetWindowLongPtr(hwnd, GWL_EXSTYLE, (IntPtr)((long)GetWindowLongPtr(hwnd, GWL_EXSTYLE) & ~(long)(uint)style));
 

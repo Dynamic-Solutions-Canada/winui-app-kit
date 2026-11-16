@@ -6,9 +6,8 @@ using static WinUIAppKit.Interop.NativeMethods;
 namespace WinUIAppKit.Windowing;
 
 /// <summary>
-/// Turns an ordinary WinUI <see cref="Window"/> into a tray flyout, the pattern Little Launcher
-/// established: context-menu presenter (no title bar), desktop acrylic, rounded DWM corners with a
-/// shadow, hidden from Alt+Tab, placed next to the taskbar beside its anchor, and dismissed on
+/// Turns an ordinary WinUI <see cref="Window"/> into a tray flyout: context-menu presenter (no title
+/// bar), desktop acrylic, rounded DWM corners with a shadow, hidden from Alt+Tab, placed next to the taskbar beside its anchor, and dismissed on
 /// deactivation or Esc.
 /// <para>
 /// It is never hidden with SW_HIDE: when closed it is cloaked and parked off-screen, so WinUI keeps its
@@ -28,7 +27,7 @@ public sealed class FlyoutController
     private readonly IntPtr _hwnd;
     private readonly SUBCLASSPROC _wndProc;   // held in a field so the GC can't collect the delegate
     private bool _isShowing;
-    private DateTime _dismissedAt = DateTime.MinValue;
+    private long _dismissedAtMs = long.MinValue / 2;   // Environment.TickCount64; immune to clock changes
     private (int X, int Y)? _anchor;
     private int _revealGeneration;   // a newer Show or a Dismiss cancels an earlier pending reveal
 
@@ -93,7 +92,7 @@ public sealed class FlyoutController
             Dismiss();
             return;
         }
-        if (DateTime.Now - _dismissedAt < ReopenGuard) return;
+        if (Environment.TickCount64 - _dismissedAtMs < (long)ReopenGuard.TotalMilliseconds) return;
         Show(anchorX, anchorY);
     }
 
@@ -169,7 +168,7 @@ public sealed class FlyoutController
     {
         if (!IsOpen) return;
         IsOpen = false;
-        _dismissedAt = DateTime.Now;
+        _dismissedAtMs = Environment.TickCount64;
         Park();
         Dismissed?.Invoke();
     }

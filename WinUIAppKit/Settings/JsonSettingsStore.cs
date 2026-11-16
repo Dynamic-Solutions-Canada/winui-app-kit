@@ -34,6 +34,7 @@ public sealed class JsonSettingsStore<T> where T : class, new()
         _options = options ?? DefaultOptions;
     }
 
+    /// <summary>Full path of the settings file (it may not exist yet).</summary>
     public string FilePath { get; }
 
     /// <summary>
