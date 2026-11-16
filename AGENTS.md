@@ -21,13 +21,16 @@ The kit owns the plumbing below and nothing else: no app's pages, settings field
 | Localization mechanism | `SupportedLanguages`, `UiText`, `Localize`, `LocalizedMessage` | `WinUIAppKit/Localization/` |
 | App environment, single instance | `AppEnvironment`, `SingleInstance` | `WinUIAppKit/AppEnvironment.cs`, `WinUIAppKit/SingleInstance.cs` |
 | Win32 declarations | `NativeMethods` | `WinUIAppKit/Interop/NativeMethods.cs` |
+| Logging | `AppLogging` | `WinUIAppKit/Logging/` |
+| Shared build configuration for apps (and the kit itself) | props, security floors, package versions, `NLog.config`, `.gitignore` block | `build/`, imported by the root `Directory.Build.props`, `Directory.Build.targets` and `Directory.Packages.props` |
 
 ## Conventions and gotchas
 
 - **Domain-neutral only.** No app names, app settings, or feature policy. Add general hooks (events, options) and keep policy in the caller; see "Rules for changes" in the README.
 - **No XAML in the kit.** Library XAML needs `.xbf`/PRI handling in every app's MSIX script. Pages, windows and resource dictionaries stay in the apps.
 - **Namespaces:** never create a `WinUIAppKit.Windows` namespace; it shadows WinRT `Windows.*` (the windowing helpers live in `WinUIAppKit.Windowing`). Write `global::Windows...` for WinRT types.
-- **Windows App SDK stays on the 1.8 line** while every consuming app ships with `Microsoft.WindowsAppRuntime.1.8`. Raising it means updating each app's manifest dependency.
+- **Windows App SDK stays on the 1.8 line** while every consuming app ships with `Microsoft.WindowsAppRuntime.1.8`. Raising it means updating each app's manifest dependency. Shared package versions live only in `build/WinUIAppKit.Packages.props`.
+- **`build/` is imported by every app.** A change there changes every app's build at its next pin bump: keep it domain-neutral, and treat anything that can fail a clean app build (a new analyzer setting, a raised floor) as a major version.
 - **Window procedures:** never show UI inside a subclass procedure; defer with `DispatcherQueue.TryEnqueue`. Each kit subclass uses its own fixed subclass id (`0x7AA1` tray, `0x7AA2` flyout) so it never collides with an app's own subclass.
 - Keep delegates passed to native code (`SUBCLASSPROC`) in fields so they are not garbage-collected.
 - **Windows 10 floor (build 19045):** a call that needs Windows 11 goes in a helper marked `[SupportedOSPlatform("windows10.0.22000")]` and is called only behind `OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000)`, so the analyzer rejects an unguarded call. Win32 and Windows SDK calls added after build 19041 carry no platform attribute, so check each new one by hand. List every degraded feature in the README's "Windows 10" table.
@@ -66,6 +69,7 @@ The kit is released as an annotated `vX.Y.Z` tag that apps pin; the version live
 | A public type added, renamed or removed | README "What's in it" table and the Architecture table above |
 | Behaviour an app relies on (identity values, flyout lifetime, language resolution, settings serialization, startup) | README "Gotchas" |
 | How an app adds or references the kit, or the target framework | README "Using it" |
+| A file in `build/`, or what an app must do to import it | README "Shared build configuration" |
 | A feature that behaves differently on Windows 10 | README "Windows 10" |
 | The Windows App SDK line | The rule above and README "Using it" |
 | A rule for kit changes | README "Rules for changes", or "Conventions and gotchas" above if only an agent needs it |

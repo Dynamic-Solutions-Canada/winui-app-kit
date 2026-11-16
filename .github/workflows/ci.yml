@@ -55,6 +55,9 @@ jobs:
             build:
               - 'WinUIAppKit/**'
               - 'Directory.Build.props'
+              - 'Directory.Build.targets'
+              - 'Directory.Packages.props'
+              - 'build/**'
               - 'global.json'
               - '.editorconfig'
               - '.github/workflows/ci.yml'

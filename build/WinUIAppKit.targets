@@ -1,0 +1,45 @@
+<Project>
+  <!--
+    Shared build targets for every .NET project in a Windows app of the family, and for the kit
+    itself (KIT-5, KIT-9). An app imports this from its root Directory.Build.targets; see "Using it"
+    in the README. Do not copy or edit it in an app. The floors it checks are set in WinUIAppKit.props.
+  -->
+
+  <!--
+    SDK floor (D-053). The shared Windows build tooling runs dotnet from the staged source root, which
+    can sit outside the folder global.json is in, so the pin alone does not guarantee the SDK band.
+  -->
+  <Target Name="WinUIAppKitValidateSdkSecurity" BeforeTargets="ProcessFrameworkReferences">
+    <Error Condition="$([MSBuild]::VersionLessThan('$(NETCoreSdkVersion)', '$(WinUIAppKitMinimumSdkVersion)'))"
+           Text="$(WinUIAppKitSecurityAdvisory): this build needs .NET SDK $(WinUIAppKitMinimumSdkVersion) or newer, but SDK $(NETCoreSdkVersion) was selected. Install a newer SDK; global.json rolls forward to it." />
+  </Target>
+
+  <!--
+    Runtime floor (PLAT-3). Self-contained apps ship the runtime inside the package, so check the
+    runtime packs that actually resolved, not the intent. Later servicing releases stay eligible, and
+    an explicit RuntimeFrameworkVersion cannot bring back a vulnerable runtime. Packs only resolve
+    for self-contained or RID-specific builds, so framework-dependent builds skip this check.
+  -->
+  <Target Name="WinUIAppKitValidateRuntimeSecurity"
+          AfterTargets="ProcessFrameworkReferences"
+          Condition="'$(TargetFrameworkIdentifier)' == '.NETCoreApp' And '$(TargetFrameworkVersion)' == 'v10.0'">
+    <Error Condition="('%(RuntimePack.FrameworkName)' == 'Microsoft.NETCore.App' Or
+                      '%(RuntimePack.FrameworkName)' == 'Microsoft.WindowsDesktop.App' Or
+                      '%(RuntimePack.FrameworkName)' == 'Microsoft.AspNetCore.App') And
+                      '%(RuntimePack.NuGetPackageVersion)' != '' And
+                      $([MSBuild]::VersionLessThan('%(RuntimePack.NuGetPackageVersion)', '$(WinUIAppKitMinimumRuntimeVersion)'))"
+           Text="$(WinUIAppKitSecurityAdvisory): runtime pack %(RuntimePack.Identity) resolved to %(RuntimePack.NuGetPackageVersion), below $(WinUIAppKitMinimumRuntimeVersion). Use a newer .NET SDK and remove any older runtime override, then restore and rebuild." />
+  </Target>
+
+  <!--
+    The shared NLog config (LOG-1, LOG-2), linked from the kit so apps never keep their own copy.
+    Added to app executables only; an app that must not ship it sets WinUIAppKitIncludeNLogConfig to false.
+    The app names its data folder at startup with AppLogging.UseDataFolder before it logs anything.
+  -->
+  <ItemGroup Condition="'$(OutputType)' == 'WinExe' And '$(WinUIAppKitIncludeNLogConfig)' != 'false'">
+    <Content Include="$(MSBuildThisFileDirectory)NLog.config"
+             Link="NLog.config"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

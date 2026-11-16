@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Check that a repo's .gitignore ends with the kit's shared block (HYG-6), unchanged.
+#
+# Usage: scripts/check-gitignore [repo-root]
+#   With no argument it checks the kit itself. An app calls the kit's copy with its own root, for
+#   example: external/winui-app-kit/scripts/check-gitignore .
+set -euo pipefail
+
+kit_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+repo_root="$(cd -- "${1:-$kit_root}" && pwd)"
+shared="$kit_root/build/shared.gitignore"
+target="$repo_root/.gitignore"
+
+if [[ ! -f "$target" ]]; then
+    printf 'check-gitignore: %s has no .gitignore.\n' "$repo_root" >&2
+    exit 1
+fi
+
+# The block must be the last lines of the file, byte for byte.
+lines="$(wc -l < "$shared")"
+if ! diff -u "$shared" <(tail -n "$lines" "$target") > /dev/null; then
+    printf 'check-gitignore: %s does not end with the shared block from build/shared.gitignore. Differences:\n' "$target" >&2
+    diff -u --label build/shared.gitignore --label "end of .gitignore" "$shared" <(tail -n "$lines" "$target") >&2 || true
+    exit 1
+fi
+
+printf 'check-gitignore: %s ends with the shared block.\n' "$target"

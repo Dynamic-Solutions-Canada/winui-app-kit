@@ -3,30 +3,24 @@
     <TargetFramework>net10.0-windows10.0.22000.0</TargetFramework>
     <!--
       Minimum supported Windows: 10 22H2 (build 19045), so every app can use the kit (PLAT-6, D-018).
-      The platform-compatibility analyzer (CA1416) checks every annotated call against this floor;
-      Win32 calls are not annotated, so Windows 11-only ones check OsVersion at runtime instead.
+      The platform-compatibility analyzer (CA1416) checks annotated calls against this floor. Windows
+      SDK annotations stop at build 19041 and Win32 calls have none, so Windows 11-only calls go in
+      helpers marked [SupportedOSPlatform("windows10.0.22000")] behind a runtime build check.
     -->
     <SupportedOSPlatformVersion>10.0.19045.0</SupportedOSPlatformVersion>
     <TargetPlatformMinVersion>$(SupportedOSPlatformVersion)</TargetPlatformMinVersion>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
     <UseWinUI>true</UseWinUI>
     <RootNamespace>WinUIAppKit</RootNamespace>
     <AssemblyName>WinUIAppKit</AssemblyName>
     <Platforms>x64;ARM64</Platforms>
     <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
-    <LangVersion>preview</LangVersion>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <!-- Public members must be documented (CS1591 is a warning); only Interop/NativeMethods.cs opts out. -->
   </PropertyGroup>
 
+  <!-- Versions come from build/WinUIAppKit.Packages.props (central package management). -->
   <ItemGroup>
-    <!--
-      Pinned to the 1.8 line on purpose: every consuming app ships against
-      Microsoft.WindowsAppRuntime.1.8. An app may reference a newer SDK itself; NuGet then resolves
-      the higher version for both.
-    -->
-    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260209005" />
-    <PackageReference Include="NLog" Version="6.2.2" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" />
+    <PackageReference Include="NLog" />
   </ItemGroup>
 </Project>

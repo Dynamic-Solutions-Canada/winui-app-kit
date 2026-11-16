@@ -7,6 +7,7 @@
     "format": "scripts/dotnet format WinUIAppKit/WinUIAppKit.csproj",
     "format:check": "scripts/dotnet format WinUIAppKit/WinUIAppKit.csproj --verify-no-changes",
     "test": "scripts/run-tests",
-    "validate": "npm run format:check && npm test"
+    "validate": "npm run format:check && npm run check:gitignore && npm test",
+    "check:gitignore": "scripts/check-gitignore"
   }
 }

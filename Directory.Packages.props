@@ -1,0 +1,8 @@
+<Project>
+  <!-- Central package management (D-096), with the versions the apps share. -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <Import Project="$(MSBuildThisFileDirectory)build/WinUIAppKit.Packages.props" />
+</Project>

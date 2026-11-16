@@ -1,0 +1,55 @@
+<Project>
+  <!--
+    Shared build properties for every .NET project in a Windows app of the family, and for the kit
+    itself (KIT-5, KIT-9). An app imports this from its root Directory.Build.props; see "Using it" in
+    the README. Do not copy or edit it in an app: change it here and take it with a pin bump.
+    The app's own Directory.Build.props keeps only what differs per app, such as <Version>.
+  -->
+
+  <!--
+    A plain "dotnet build" passes no Platform, so MSBuild defaults to AnyCPU, which is not in the
+    Platforms list. Pick the OS architecture instead (x64 or ARM64).
+  -->
+  <PropertyGroup Condition="'$(Platform)' == '' Or '$(Platform)' == 'AnyCPU'">
+    <Platform Condition="'$(PROCESSOR_ARCHITECTURE)' == 'ARM64'">ARM64</Platform>
+    <Platform Condition="'$(PROCESSOR_ARCHITECTURE)' != 'ARM64'">x64</Platform>
+  </PropertyGroup>
+
+  <!-- Language settings for every project, helpers and tests included (STYLE-6). -->
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>preview</LangVersion>
+  </PropertyGroup>
+
+  <!--
+    Analyzers and code style (STYLE-7): the .editorconfig rules are reported by a normal build.
+    AnalysisLevel is pinned to the target framework's rule set, so a newer SDK cannot add warnings
+    (errors in Release) to a build nobody changed.
+  -->
+  <PropertyGroup>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>10.0</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+
+  <!--
+    Warnings fail CI and Release builds; Debug leaves them as warnings so work in progress compiles
+    (D-091). A repo that does not build warning-free yet sets WinUIAppKitWarningsAsErrors to false in
+    its Directory.Build.props, with a comment, until it does.
+  -->
+  <PropertyGroup Condition="('$(Configuration)' == 'Release' Or '$(CI)' == 'true') And '$(WinUIAppKitWarningsAsErrors)' != 'false'">
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <!--
+    Security floors checked by WinUIAppKit.targets (PLAT-3, D-053). Raised here, in one place, when a
+    .NET security release moves them. CVE-2026-111497 set both:
+    https://github.com/dotnet/runtime/security/advisories/GHSA-p3jp-9v83-76w9
+  -->
+  <PropertyGroup>
+    <WinUIAppKitMinimumSdkVersion>10.0.403</WinUIAppKitMinimumSdkVersion>
+    <WinUIAppKitMinimumRuntimeVersion>10.0.14</WinUIAppKitMinimumRuntimeVersion>
+    <WinUIAppKitSecurityAdvisory>CVE-2026-111497</WinUIAppKitSecurityAdvisory>
+  </PropertyGroup>
+</Project>

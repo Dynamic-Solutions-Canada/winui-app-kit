@@ -1,0 +1,4 @@
+<Project>
+  <!-- The kit uses the same shared build targets (security floors) it gives the apps. -->
+  <Import Project="$(MSBuildThisFileDirectory)build/WinUIAppKit.targets" />
+</Project>

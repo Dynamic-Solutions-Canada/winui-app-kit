@@ -1,0 +1,16 @@
+<Project>
+  <!--
+    Versions of the packages the Windows apps share (PLAT-5, D-096), for central package management.
+    An app imports this from its root Directory.Packages.props and adds its own packages there; see
+    "Using it" in the README. Do not override these versions in an app: an app never moves ahead of
+    the kit, and a move happens here, as its own change.
+
+    Microsoft.WindowsAppSDK stays on the 1.8 line while every consuming app ships with
+    Microsoft.WindowsAppRuntime.1.8; moving off it means updating each app's manifest dependency.
+  -->
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.WindowsAppSDK" Version="1.8.260209005" />
+    <PackageVersion Include="NLog" Version="6.2.2" />
+    <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+  </ItemGroup>
+</Project>

@@ -15,8 +15,11 @@ Shared plumbing for small WinUI 3 desktop apps that live in the system tray: the
 | Theming | `AppTheme` | System / light / dark choice applied to every open window |
 | Localization | `SupportedLanguages`, `UiText`, `Localize`, `LocalizedMessage` | Interface text from per-language JSON catalogs embedded in the app, chosen from the user's override or Windows' languages; XAML attached properties that relabel open windows live; messages stored as key plus values so they follow a language change |
 | App | `AppEnvironment`, `SingleInstance` | Packaged or not, version, data folders, one running copy |
+| Logging | `AppLogging` | Names the app's data folder for the shared NLog config: one log file per launch beside `settings.json`, keeping the current file and three older ones |
 
 Win32 declarations shared by these live in `Interop/NativeMethods.cs`.
+
+The `build/` folder holds the build configuration every app shares: properties, the security floors, package versions, the NLog config and the `.gitignore` block. See "Shared build configuration".
 
 ## Using it
 
@@ -31,7 +34,64 @@ git -C external/winui-app-kit checkout vX.Y.Z
 <ProjectReference Include="..\external\winui-app-kit\WinUIAppKit\WinUIAppKit.csproj" />
 ```
 
-The kit targets `net10.0-windows10.0.22000.0` and Windows App SDK 1.8, and runs on Windows 10 22H2 (build 19045) and later; see "Windows 10". An app may use a newer SDK; NuGet then resolves the higher version for both.
+The kit targets `net10.0-windows10.0.22000.0` and Windows App SDK 1.8, and runs on Windows 10 22H2 (build 19045) and later; see "Windows 10". The app takes its Windows App SDK version from the kit (below) and never moves ahead of it.
+
+### Shared build configuration
+
+Four imports give the app the family's build settings. Each goes in the file named, at the repo root:
+
+```xml
+<!-- Directory.Build.props: shared properties first, then what is this app's own -->
+<Project>
+  <Import Project="$(MSBuildThisFileDirectory)external/winui-app-kit/build/WinUIAppKit.props" />
+
+  <PropertyGroup>
+    <Version>1.2.3</Version>
+  </PropertyGroup>
+</Project>
+```
+
+```xml
+<!-- Directory.Build.targets -->
+<Project>
+  <Import Project="$(MSBuildThisFileDirectory)external/winui-app-kit/build/WinUIAppKit.targets" />
+</Project>
+```
+
+```xml
+<!-- Directory.Packages.props: shared versions, then this app's own packages -->
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <Import Project="$(MSBuildThisFileDirectory)external/winui-app-kit/build/WinUIAppKit.Packages.props" />
+
+  <ItemGroup>
+    <PackageVersion Include="System.Management" Version="10.0.0" />
+  </ItemGroup>
+</Project>
+```
+
+Then, in the app:
+
+- **Project files:** `PackageReference` items carry no `Version` (central package management supplies it). Remove `Nullable`, `ImplicitUsings` and `LangVersion`, and the platform auto-detect block in `Directory.Build.props`; the shared props set them.
+- **Logging:** delete the app's own `NLog.config` and its `Content` item; the shared config is linked into every `WinExe` project. Call `AppLogging.UseDataFolder("<data folder>")` first thing in the `App` constructor, with the folder `AppEnvironment.DataDirectory` uses.
+- **`.editorconfig`:** copy the kit's root `.editorconfig` unchanged.
+- **`.gitignore`:** end it with `build/shared.gitignore`, unchanged. Add `external/winui-app-kit/scripts/check-gitignore .` to the app's `validate` to keep it that way.
+
+What each file sets:
+
+| File | Sets |
+| --- | --- |
+| `build/WinUIAppKit.props` | Platform auto-detect, nullable and language settings, .NET analyzers with code style in the build and a pinned analysis level, warnings as errors in Release and CI, and the security floors |
+| `build/WinUIAppKit.targets` | Fails the build below the .NET SDK floor, or when a self-contained build resolves a runtime below the runtime floor; links the shared `NLog.config` into app executables |
+| `build/WinUIAppKit.Packages.props` | Versions of Microsoft.WindowsAppSDK, NLog and CommunityToolkit.Mvvm |
+| `build/NLog.config` | One log file per launch in `%AppData%\<data folder>`, Info and above, the shared layout, current file plus three older ones |
+| `build/shared.gitignore` | The shared ignore block: build output, local signing material, secrets, editor and OS files |
+| `.editorconfig` (repo root) | The family's code style |
+
+An app never hand-edits any of these, or keeps its own copy of one: the build files and `NLog.config` are used straight from the submodule, and `.editorconfig` and the `.gitignore` block are copied unchanged. A change goes into the kit and reaches every app with the next pin bump. Two switches exist for an app that cannot take a default yet, each set in its `Directory.Build.props` with a comment saying why: `WinUIAppKitWarningsAsErrors` (`false` until the app builds warning-free) and `WinUIAppKitIncludeNLogConfig` (`false` for an executable that must not ship the log config).
 
 ## Windows 10
 
