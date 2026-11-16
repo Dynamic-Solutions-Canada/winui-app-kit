@@ -30,6 +30,7 @@ public sealed class FlyoutController
     private bool _isShowing;
     private DateTime _dismissedAt = DateTime.MinValue;
     private (int X, int Y)? _anchor;
+    private int _revealGeneration;   // a newer Show or a Dismiss cancels an earlier pending reveal
 
     /// <param name="window">The flyout window. Its content must be <paramref name="root"/>.</param>
     /// <param name="root">The element measured to size the flyout's height.</param>
@@ -103,14 +104,57 @@ public sealed class FlyoutController
         _anchor = (anchorX, anchorY);
         Opening?.Invoke();
 
+        // Move and resize while still cloaked, then reveal only once XAML has drawn at the new size.
+        // Uncloaking straight away shows a frame of bare (black) acrylic with the old layout in it.
         PlaceAtAnchor(anchorX, anchorY, SWP_SHOWWINDOW);
-        Cloak(_hwnd, false);
-        SetForegroundWindow(_hwnd);
-        SetFocus(_hwnd);
         IsOpen = true;
+        RevealAfterRender();
+    }
 
-        // Activation messages from the show arrive asynchronously; only then may deactivation dismiss.
-        _window.DispatcherQueue.TryEnqueue(() => _isShowing = false);
+    /// <summary>
+    /// Uncloak and focus the flyout after two rendered frames (one to lay out at the new size, one for
+    /// that to reach the screen), with a 150 ms fallback so it can never stay invisible. Does nothing
+    /// if the flyout was dismissed or shown again in the meantime.
+    /// </summary>
+    private void RevealAfterRender()
+    {
+        int generation = ++_revealGeneration;
+        int frames = 0;
+        bool done = false;
+        var fallback = _window.DispatcherQueue.CreateTimer();
+
+        void Reveal()
+        {
+            if (done) return;
+            done = true;
+            Microsoft.UI.Xaml.Media.CompositionTarget.Rendering -= OnRendering;
+            fallback.Stop();
+
+            if (generation != _revealGeneration) return;   // superseded by a newer Show
+            if (!IsOpen)
+            {
+                _isShowing = false;   // dismissed before it appeared
+                return;
+            }
+
+            Cloak(_hwnd, false);
+            SetForegroundWindow(_hwnd);
+            SetFocus(_hwnd);
+
+            // Activation messages from the show arrive asynchronously; only then may deactivation dismiss.
+            _window.DispatcherQueue.TryEnqueue(() => _isShowing = false);
+        }
+
+        void OnRendering(object? sender, object e)
+        {
+            if (++frames >= 2) Reveal();
+        }
+
+        Microsoft.UI.Xaml.Media.CompositionTarget.Rendering += OnRendering;
+        fallback.Interval = TimeSpan.FromMilliseconds(150);
+        fallback.IsRepeating = false;
+        fallback.Tick += (_, _) => Reveal();
+        fallback.Start();
     }
 
     /// <summary>Re-measure and re-place an open flyout after its content changed size.</summary>
@@ -138,9 +182,16 @@ public sealed class FlyoutController
     {
         if (IsOpen) return;
         Cloak(_hwnd, true);
-        int w = (int)_widthDip, h = 400;
+
+        // Keep the last shown size so the next open doesn't re-lay out from scratch. Before the first
+        // open the window has no useful size yet, so start from the flyout width.
+        var size = AppWindow.Size;
+        int w = size.Width > 1 ? size.Width : (int)_widthDip;
+        int h = size.Height > 1 ? size.Height : 400;
         var (x, y) = ParkingSpot(w, h);
-        SetWindowPos(_hwnd, IntPtr.Zero, x, y, w, h, SWP_NOZORDER | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+        bool sized = size.Width > 1 && size.Height > 1;
+        SetWindowPos(_hwnd, IntPtr.Zero, x, y, w, h,
+            SWP_NOZORDER | SWP_NOACTIVATE | SWP_SHOWWINDOW | (sized ? SWP_NOSIZE : 0u));
     }
 
     private void PlaceAtAnchor(int anchorX, int anchorY, uint extraFlags)
