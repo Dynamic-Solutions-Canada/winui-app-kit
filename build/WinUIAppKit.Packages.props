@@ -12,5 +12,11 @@
     <PackageVersion Include="Microsoft.WindowsAppSDK" Version="1.8.260209005" />
     <PackageVersion Include="NLog" Version="6.2.2" />
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <!--
+      Windows data protection for WinUIAppKit.Settings.ProtectedStore. A package rather than the Windows
+      Desktop framework, so apps without WPF or WinForms do not take that framework on. Held on the
+      .NET 10 line with the rest of the family (11.x belongs to the next major).
+    -->
+    <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.15" />
   </ItemGroup>
 </Project>

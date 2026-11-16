@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Portable harness for the settings store, the protected store and atomic writes (TEST-2). It links
+    the production source files instead of referencing the WinUI library, so it runs on Linux.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="../../WinUIAppKit/Settings/AtomicFile.cs" Link="Linked/AtomicFile.cs" />
+    <Compile Include="../../WinUIAppKit/Settings/ProtectedStore.cs" Link="Linked/ProtectedStore.cs" />
+    <Compile Include="../../WinUIAppKit/Settings/JsonSettingsStore.cs" Link="Linked/JsonSettingsStore.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NLog" />
+    <!-- Lets the linked ProtectedStore compile off Windows; the harness never calls DPAPI. -->
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" />
+  </ItemGroup>
+</Project>

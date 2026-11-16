@@ -10,7 +10,8 @@ Shared plumbing for small WinUI 3 desktop apps that live in the system tray: the
 | Tray | `TrayMenu` | Native right-click menu that follows dark mode |
 | Windows | `FlyoutController` | Turns a `Window` into a tray flyout: acrylic, rounded corners, placed by the taskbar, dismissed on focus loss or Esc, parked off-screen for instant reopening |
 | Windows | `WindowChrome`, `WindowIcon`, `WindowPlacement` | Sharp window icons, saved size and position (ignored if the monitor is gone), bring-to-front |
-| Settings | `JsonSettingsStore<T>` | Atomic JSON load/save of the app's own settings class |
+| Settings | `JsonSettingsStore<T>`, `SettingsLoadResult<T>` | Atomic JSON load/save of the app's own settings class, with a schema version, ordered migrations, backups, and first run, unreadable and reset reported apart |
+| Settings | `ProtectedStore`, `IDataProtector`, `AtomicFile` | Credentials kept outside `settings.json`, encrypted to the Windows user; atomic file replacement |
 | Startup | `StartupRegistration`, `StartupStatus` | Start with Windows for packaged (startup task) and unpackaged (Run key) builds; reports when the user (in Windows Settings) or a policy decides instead of the app |
 | Theming | `AppTheme` | System / light / dark choice applied to every open window |
 | Localization | `SupportedLanguages`, `UiText`, `Localize`, `LocalizedMessage` | Interface text from per-language JSON catalogs embedded in the app, chosen from the user's override or Windows' languages; XAML attached properties that relabel open windows live; messages stored as key plus values so they follow a language change |
@@ -92,6 +93,61 @@ What each file sets:
 | `.editorconfig` (repo root) | The family's code style |
 
 An app never hand-edits any of these, or keeps its own copy of one: the build files and `NLog.config` are used straight from the submodule, and `.editorconfig` and the `.gitignore` block are copied unchanged. A change goes into the kit and reaches every app with the next pin bump. Two switches exist for an app that cannot take a default yet, each set in its `Directory.Build.props` with a comment saying why: `WinUIAppKitWarningsAsErrors` (`false` until the app builds warning-free) and `WinUIAppKitIncludeNLogConfig` (`false` for an executable that must not ship the log config).
+
+## Settings
+
+### The settings file
+
+Create the store with the app's migrations to make it versioned (CONF-3). Each step upgrades the file's JSON by one version, editing it in place; a file with no version is version 0, so the current version is the number of steps. Steps are never removed or reordered once shipped.
+
+```csharp
+var store = new JsonSettingsStore<UserSettings>(
+    Path.Combine(AppEnvironment.DataDirectory("MyApp"), "settings.json"),
+    [
+        root => { if (root.Remove("OldName", out var v)) root["NewName"] = v; },   // 0 -> 1
+    ]);
+
+var result = store.Load();
+switch (result.Outcome)
+{
+    case SettingsLoadOutcome.FirstRun: /* open the main surface once (UI-15) */ break;
+    case SettingsLoadOutcome.Unreadable: /* tell the user once that settings were reset */ break;
+}
+```
+
+`Load()` never throws, and always writes the file it returns, so a notice is shown only once:
+
+| Outcome | When | Kept |
+| --- | --- | --- |
+| `FirstRun` | No file | Nothing; defaults are written |
+| `Loaded` | The file is current | Nothing |
+| `Migrated` | The file is older | `settings.json.v<old>.bak`, before the first step runs |
+| `NewerVersion` | A newer app version wrote it | `settings.json.v<its version>.bak`; the file is loaded as far as this version understands it and is not rewritten until the next save |
+| `Unreadable` | Not JSON, the wrong shape, or a migration step threw | `settings.json.bad`; defaults are written |
+
+`Reset()` is the "Reset settings" action (CONF-4). It renames the file to `settings.json.<UTC time>.reset`, writes defaults and returns `Reset`. It touches nothing else: the startup task and stored credentials stay as they are.
+
+The store writes `SchemaVersion` as the first property and owns it, so the settings class should not declare one. Default values are written and nulls omitted. The unversioned constructor and `Load(out bool isFirstRun)` keep their old behaviour, writing no version, for apps that have not switched yet.
+
+### Credentials
+
+`ProtectedStore` keeps credentials out of `settings.json` (SEC-1, CONF-5): one file per name in the app's data folder, encrypted with Windows data protection for the current user.
+
+```csharp
+static readonly ProtectedStore Credentials = new(
+    () => AppEnvironment.PhysicalDataDirectory("MyApp"),
+    "protected-{0}.dat",
+    Encoding.UTF8.GetBytes("MyApp.ProtectedStore.v1"),
+    logError: (message, ex) => Logger.Warn(ex, message));
+
+Credentials.Save("api-key", new ApiKey(value));
+ApiKey? key = Credentials.Load<ApiKey>("api-key");
+```
+
+- **Permanent values:** the folder, the file-name pattern and the entropy are permanent once the app ships. Changing any of them makes every stored value unreadable, so an app already keeping credentials passes its existing values.
+- **Unreadable files:** `Load` returns null for a missing or unreadable file and never deletes it, because another process may read the same file. Use `Exists` to tell "never saved" from "unreadable" and tell the user.
+- **Failures:** `Save` and `Clear` report failures to `logError` and do not throw. Messages never contain the stored value. Names that could leave the folder (`..`, separators) throw `ArgumentException`.
+- **Second processes and tests:** `ProtectedStore.cs` and `AtomicFile.cs` depend on nothing else in the kit, NLog or WinUI. A second process, such as a shell extension, or a portable test harness can compile them in with `<Compile Include="...\ProtectedStore.cs" Link="..." />` and the `System.Security.Cryptography.ProtectedData` package. Off Windows, pass an `IDataProtector`.
 
 ## Windows 10
 

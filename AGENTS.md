@@ -15,7 +15,7 @@ The kit owns the plumbing below and nothing else: no app's pages, settings field
 | Tray icon and menu | `TrayIcon`, `TrayAnchor`, `TrayMenu` | `WinUIAppKit/Tray/` |
 | Tray flyout | `FlyoutController` | `WinUIAppKit/Windowing/FlyoutController.cs` |
 | Window chrome and placement | `WindowChrome`, `WindowIcon`, `WindowPlacement` | `WinUIAppKit/Windowing/WindowChrome.cs` |
-| Settings file | `JsonSettingsStore<T>` | `WinUIAppKit/Settings/` |
+| Settings file and credentials | `JsonSettingsStore<T>`, `ProtectedStore`, `AtomicFile` | `WinUIAppKit/Settings/` |
 | Start with Windows | `StartupRegistration`, `StartupStatus` | `WinUIAppKit/Startup/` |
 | Theme switching | `AppTheme` | `WinUIAppKit/Theming/` |
 | Localization mechanism | `SupportedLanguages`, `UiText`, `Localize`, `LocalizedMessage` | `WinUIAppKit/Localization/` |
@@ -33,6 +33,7 @@ The kit owns the plumbing below and nothing else: no app's pages, settings field
 - **`build/` is imported by every app.** A change there changes every app's build at its next pin bump: keep it domain-neutral, and treat anything that can fail a clean app build (a new analyzer setting, a raised floor) as a major version.
 - **Window procedures:** never show UI inside a subclass procedure; defer with `DispatcherQueue.TryEnqueue`. Each kit subclass uses its own fixed subclass id (`0x7AA1` tray, `0x7AA2` flyout) so it never collides with an app's own subclass.
 - Keep delegates passed to native code (`SUBCLASSPROC`) in fields so they are not garbage-collected.
+- **`ProtectedStore.cs` and `AtomicFile.cs` stay self-contained:** no NLog, WinUI or other kit types, because apps link them into second processes and test harnesses.
 - **Windows 10 floor (build 19045):** a call that needs Windows 11 goes in a helper marked `[SupportedOSPlatform("windows10.0.22000")]` and is called only behind `OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000)`, so the analyzer rejects an unguarded call. Win32 and Windows SDK calls added after build 19041 carry no platform attribute, so check each new one by hand. List every degraded feature in the README's "Windows 10" table.
 - **Localization:** the kit holds the mechanism only. Each app owns its language list, catalogs and keys; never put app wording in the kit. `UiText.SetOverride` and `Changed` run on the UI thread.
 - **Behaviour apps rely on is documented in the README's "Gotchas" section.** Apps link to it instead of keeping their own copy, so a change to that behaviour updates the README in the same commit.
@@ -44,7 +45,7 @@ The kit owns the plumbing below and nothing else: no app's pages, settings field
 | `npm run validate` | The gate CI runs on Linux: `format:check` (whitespace, `.editorconfig` style and analyzers through `dotnet format`) and `test` | That the library compiles for Windows |
 | `npm run format` | Rewrites files to the `.editorconfig` style | Anything; review the diff |
 | `npm run verify` | The library compiles for x64 and ARM64 in Release (warnings are errors), through the shared Windows build tooling | Behaviour; needs the Windows build host |
-| `npm test` | Every test project under `tests/` passes (none exist yet) | Windows-only behaviour |
+| `npm test` | Every portable harness under `tests/` passes (`tests/<Area>.Tests/`, each with a README saying what it proves) | Windows-only behaviour: DPAPI, packaged paths, windows |
 
 `scripts/dotnet` uses the host .NET SDK when there is one, otherwise the SDK container matching `global.json` (Docker needed). The same Windows compile runs in CI (`windows-compile` in `.github/workflows/ci.yml`); `verify` reaches the tooling through `scripts/windows-build` and `windows-build.json`. Release and CI builds treat warnings as errors, and so does every app's Release build of the kit, so keep the kit warning-free.
 
@@ -70,6 +71,7 @@ The kit is released as an annotated `vX.Y.Z` tag that apps pin; the version live
 | Behaviour an app relies on (identity values, flyout lifetime, language resolution, settings serialization, startup) | README "Gotchas" |
 | How an app adds or references the kit, or the target framework | README "Using it" |
 | A file in `build/`, or what an app must do to import it | README "Shared build configuration" |
+| Settings store or protected store behaviour | README "Settings" and the harness in `tests/WinUIAppKit.Settings.Tests/` |
 | A feature that behaves differently on Windows 10 | README "Windows 10" |
 | The Windows App SDK line | The rule above and README "Using it" |
 | A rule for kit changes | README "Rules for changes", or "Conventions and gotchas" above if only an agent needs it |
