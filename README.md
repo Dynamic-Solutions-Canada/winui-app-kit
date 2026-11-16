@@ -48,8 +48,13 @@ The kit targets `net10.0-windows10.0.22000.0` and Windows App SDK 1.8, and runs 
 Four imports give the app the family's build settings. Each goes in the file named, at the repo root:
 
 ```xml
-<!-- Directory.Build.props: shared properties first, then what is this app's own -->
+<!-- Directory.Build.props: any opt-out switch first, then the shared properties, then what is this app's own -->
 <Project>
+  <!-- Only while the app still has warnings to fix; must come before the import (see below). -->
+  <PropertyGroup>
+    <WinUIAppKitWarningsAsErrors>false</WinUIAppKitWarningsAsErrors>
+  </PropertyGroup>
+
   <Import Project="$(MSBuildThisFileDirectory)external/winui-app-kit/build/WinUIAppKit.props" />
 
   <PropertyGroup>
@@ -82,6 +87,8 @@ Four imports give the app the family's build settings. Each goes in the file nam
 
 Then, in the app:
 
+- **Windows build commands:** the kit holds the one `scripts/windows-build` wrapper (SCRIPT-6). The app deletes its own copy and calls the kit's from its npm scripts, for example `"verify:desktop": "external/winui-app-kit/scripts/windows-build --build-only --configuration Debug"`. The wrapper builds the folder it runs in, which npm sets to the package root, and stops unless that folder has a `windows-build.json`. A repo with steps to run first, such as generated files, runs them in its own npm script before calling the wrapper. `WINDOWS_BUILD_TOOLS` overrides where the build tooling is checked out.
+
 - **Project files:** `PackageReference` items carry no `Version` (central package management supplies it). Remove `Nullable`, `ImplicitUsings` and `LangVersion`, and the platform auto-detect block in `Directory.Build.props`; the shared props set them.
 - **Logging:** delete the app's own `NLog.config` and its `Content` item; the shared config is linked into every `WinExe` project. Call `AppLogging.UseDataFolder("<data folder>")` first thing in the `App` constructor, with the folder `AppEnvironment.DataDirectory` uses.
 - **`.editorconfig`:** copy the kit's root `.editorconfig` unchanged.
@@ -98,7 +105,10 @@ What each file sets:
 | `build/shared.gitignore` | The shared ignore block: build output, local signing material, secrets, editor and OS files |
 | `.editorconfig` (repo root) | The family's code style |
 
-An app never hand-edits any of these, or keeps its own copy of one: the build files and `NLog.config` are used straight from the submodule, and `.editorconfig` and the `.gitignore` block are copied unchanged. A change goes into the kit and reaches every app with the next pin bump. Two switches exist for an app that cannot take a default yet, each set in its `Directory.Build.props` with a comment saying why: `WinUIAppKitWarningsAsErrors` (`false` until the app builds warning-free) and `WinUIAppKitIncludeNLogConfig` (`false` for an executable that must not ship the log config).
+An app never hand-edits any of these, or keeps its own copy of one: the build files and `NLog.config` are used straight from the submodule, and `.editorconfig` and the `.gitignore` block are copied unchanged. A change goes into the kit and reaches every app with the next pin bump. Two switches exist for an app that cannot take a default yet, each set in its `Directory.Build.props` with a comment saying why:
+
+- **`WinUIAppKitWarningsAsErrors`:** `false` until the app builds warning-free. Set it **before** the `WinUIAppKit.props` import, as in the example above. The shared props decide warnings-as-errors when they are imported, so a value set after the import is ignored.
+- **`WinUIAppKitIncludeNLogConfig`:** `false` for an executable that must not ship the log config. It is read by `WinUIAppKit.targets`, which MSBuild evaluates after every props file, so it works anywhere in `Directory.Build.props`; keeping it next to the other switch, before the import, is clearest.
 
 ## Shared XAML
 
@@ -225,6 +235,26 @@ The shell, the About page and the settings every app has use labels the kit owns
 | `kit.about.*` | The About page's labels and update messages |
 
 The full list, with every translation, is in `WinUIAppKit/Localization/Catalogs/`. Translations new in the kit are machine translations, not yet reviewed.
+
+## Packaging
+
+`build/build-msix.ps1` is the one MSIX packaging script for every app (KIT-9, DIST-1). The app deletes its own script and points `package_script` in `windows-build.json` at the kit's; the shared Windows build tooling runs it for `build:desktop`, `package:desktop` and `install:desktop`. Everything that differs between apps is a `windows-build.json` key, listed with its default at the top of the script; the minimum is:
+
+```json
+{
+  "project": "MyApp/MyApp.csproj",
+  "package_script": "external/winui-app-kit/build/build-msix.ps1",
+  "msix_dir": "MyAppMSIX",
+  "manifest_strings": { "catalog_dir": "MyApp/Strings" }
+}
+```
+
+- **Steps:** it publishes the app self-contained, plus any `companions`, assembles the layout with the compiled XAML, stamps the manifest's version and identity, builds one `resources.pri` for every declared language, checks the manifest strings resolve in each, then packs and signs.
+- **Languages:** the regional identities (en-CA, fr-CA) reuse the US English and French catalogs, as listed in `build/languages.json`, the family's one language list (LOC-2).
+- **Signing:**
+  - Signing material is only ever a parameter. There is no fallback certificate, no generated certificate and no written password, and `-NoSign` builds the unsigned Store upload.
+  - `-StoreIdentity` builds a signed bundle with the Store identity, for updating a Store install in place.
+  - signtool takes the password on its command line, where other processes of the same user can see it while it runs. That is accepted for the local development certificate and the per-run CI certificate.
 
 ## Starting a resident app
 

@@ -25,6 +25,7 @@ The kit owns the plumbing below and nothing else: no app's pages, settings field
 | App environment, single instance, Win32 declarations | `WinUIAppKit/AppEnvironment.cs`, `WinUIAppKit/SingleInstance.cs`, `WinUIAppKit/Interop/` |
 | Shared XAML (styles, settings shell, About page, Settings page rows), compiled by each app | `Xaml/`, with `Xaml/CompileCheck/` building it for the kit |
 | Shared build configuration for apps and the kit | `build/`, imported by the root `Directory.Build.props`, `Directory.Build.targets` and `Directory.Packages.props` |
+| Packaging and Windows build entry point for apps | `build/build-msix.ps1` (driven by each app's `windows-build.json`), `build/languages.json`, `scripts/windows-build` |
 
 ## Conventions and gotchas
 

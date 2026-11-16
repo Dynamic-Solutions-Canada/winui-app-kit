@@ -1,0 +1,51 @@
+{
+  "_comment": "The family's interface languages (LOC-2, LOC-9): one list, in picker order. Each identity names the wording catalog it reads; the Canadian identities reuse the US English and French catalogs. Read by the packaging script and the catalog check; apps mirror it in their SupportedLanguages. Change it here.",
+  "default": "en-US",
+  "languages": [
+    {
+      "identity": "en-US",
+      "catalog": "en-US",
+      "name": "English (United States)"
+    },
+    {
+      "identity": "en-CA",
+      "catalog": "en-US",
+      "name": "English (Canada)"
+    },
+    {
+      "identity": "es-ES",
+      "catalog": "es-ES",
+      "name": "Español (España)"
+    },
+    {
+      "identity": "fr-FR",
+      "catalog": "fr-FR",
+      "name": "Français (France)"
+    },
+    {
+      "identity": "fr-CA",
+      "catalog": "fr-FR",
+      "name": "Français (Canada)"
+    },
+    {
+      "identity": "de-DE",
+      "catalog": "de-DE",
+      "name": "Deutsch (Deutschland)"
+    },
+    {
+      "identity": "zh-CN",
+      "catalog": "zh-CN",
+      "name": "简体中文（中国）"
+    },
+    {
+      "identity": "pt-BR",
+      "catalog": "pt-BR",
+      "name": "Português (Brasil)"
+    },
+    {
+      "identity": "ja-JP",
+      "catalog": "ja-JP",
+      "name": "日本語（日本）"
+    }
+  ]
+}

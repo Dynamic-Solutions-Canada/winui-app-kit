@@ -1,10 +1,27 @@
 #!/usr/bin/env bash
-# Build the current working tree with Windows tools in disposable Windows TEMP.
+# Build a repo's working tree with Windows tools in a disposable Windows TEMP folder, through the shared
+# Windows build tooling (SCRIPT-6). This is the one copy: apps call it from the kit submodule, for example
+#   "verify:desktop": "external/winui-app-kit/scripts/windows-build --build-only --configuration Debug"
+# and keep no copy of their own.
+#
+# The repo built is the folder the command runs in, which npm sets to the package root. It is never
+# derived from this script's own path, because inside a submodule that would be the kit, not the app.
+# A repo with steps to run first (generated files) runs them in its own npm script before calling this.
+#
+# Environment overrides:
+#   WINDOWS_BUILD_TOOLS  where the build tooling is checked out (default /development/windows-build-tools)
 set -euo pipefail
-repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-tools_root="${WINDOWS_BUILD_TOOLS:-/development/windows-build-tools}"
-if [[ ! -f "$tools_root/windows-build.py" ]]; then
-    printf 'Missing Windows build bridge: %s\n' "$tools_root" >&2
+
+repo_root="$(pwd)"
+if [[ ! -f "$repo_root/windows-build.json" ]]; then
+    printf 'windows-build: run this from a repo root that has windows-build.json (npm does this for package scripts); %s has none.\n' "$repo_root" >&2
     exit 1
 fi
+
+tools_root="${WINDOWS_BUILD_TOOLS:-/development/windows-build-tools}"
+if [[ ! -f "$tools_root/windows-build.py" ]]; then
+    printf 'windows-build: missing the Windows build tooling at %s; set WINDOWS_BUILD_TOOLS to its checkout.\n' "$tools_root" >&2
+    exit 1
+fi
+
 exec python3 "$tools_root/windows-build.py" --repo "$repo_root" "$@"
