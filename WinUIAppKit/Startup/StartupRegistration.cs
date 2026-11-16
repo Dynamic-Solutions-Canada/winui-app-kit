@@ -143,12 +143,48 @@ public sealed class StartupRegistration
         catch (Exception ex) { Logger.Warn(ex, "Couldn't clean unpackaged Run entries"); }
     }
 
+    /// <summary>
+    /// For an unpackaged copy: point an existing Run-key entry at this executable, so a portable copy that
+    /// was moved or replaced by a newer download still starts at sign-in, rather than an old copy or nothing
+    /// (TRAY-10). It never creates an entry and never re-enables startup the user turned off: it rewrites
+    /// only an entry that exists, under the same name, and Windows keeps the user's choice by that name.
+    /// Does nothing when packaged. Call it once at startup; whether every unpackaged copy counts as
+    /// portable is the app's decision. Failures are logged, not thrown.
+    /// </summary>
+    /// <returns>True when the entry was rewritten.</returns>
+    public bool RepointRunEntry()
+    {
+        if (AppEnvironment.IsPackaged || Environment.ProcessPath is not { } exePath)
+        {
+            return false;
+        }
+
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true);
+            string? updated = RunEntry.Repoint(key?.GetValue(_runValueName) as string, exePath, _silentArgument);
+            if (key is null || updated is null)
+            {
+                return false;
+            }
+
+            key.SetValue(_runValueName, updated);
+            Logger.Info("Start-with-Windows entry {Name} re-pointed to {Path}", _runValueName, exePath);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Logger.Warn(ex, "Couldn't re-point the start-with-Windows entry");
+            return false;
+        }
+    }
+
     private void SetRunValue(bool enabled)
     {
         using var key = Registry.CurrentUser.CreateSubKey(RunKeyPath);
         if (enabled)
         {
-            key.SetValue(_runValueName, $"\"{Environment.ProcessPath}\" {_silentArgument}");
+            key.SetValue(_runValueName, RunEntry.Format(Environment.ProcessPath ?? "", _silentArgument));
         }
         else if (key.GetValue(_runValueName) != null)
         {
