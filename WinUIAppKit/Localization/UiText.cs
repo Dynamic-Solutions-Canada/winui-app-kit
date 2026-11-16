@@ -18,15 +18,15 @@ namespace WinUIAppKit.Localization;
 public static partial class UiText
 {
     private static readonly NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
-    private static readonly Dictionary<string, Dictionary<string, string>> s_catalogs = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, Dictionary<string, string>> Catalogs = new(StringComparer.Ordinal);
 
-    private static Assembly? s_assembly;
-    private static string s_resourcePrefix = "";
-    private static SupportedLanguages? s_languages;
+    private static Assembly? _assembly;
+    private static string _resourcePrefix = "";
+    private static SupportedLanguages? _languages;
 
     /// <summary>The supported languages passed to <see cref="Configure"/>.</summary>
     public static SupportedLanguages Languages =>
-        s_languages ?? throw new InvalidOperationException("UiText.Configure has not been called.");
+        _languages ?? throw new InvalidOperationException("UiText.Configure has not been called.");
 
     /// <summary>The user's explicit choice, or null to follow Windows.</summary>
     public static string? Override { get; private set; }
@@ -48,9 +48,9 @@ public static partial class UiText
     /// <param name="languageOverride">The saved choice, or null to follow Windows. Unknown values are ignored.</param>
     public static void Configure(Assembly catalogAssembly, string resourcePrefix, SupportedLanguages languages, string? languageOverride)
     {
-        s_assembly = catalogAssembly;
-        s_resourcePrefix = resourcePrefix;
-        s_languages = languages;
+        _assembly = catalogAssembly;
+        _resourcePrefix = resourcePrefix;
+        _languages = languages;
         Override = languages.NormalizeOverride(languageOverride);
         Locale = Resolve();
         Logger.Info("Interface language {Locale} (override {Override}, Windows {Preferences})",
@@ -78,7 +78,7 @@ public static partial class UiText
     /// <summary>The text for <paramref name="key"/> in the current language.</summary>
     public static string Get(string key)
     {
-        if (s_languages is null)
+        if (_languages is null)
         {
             return key;
         }
@@ -100,7 +100,7 @@ public static partial class UiText
     /// <summary>The default-language (source) text for <paramref name="key"/>, for matching fixed English copy.</summary>
     public static string Source(string key)
     {
-        if (s_languages is null)
+        if (_languages is null)
         {
             return key;
         }
@@ -149,9 +149,9 @@ public static partial class UiText
     /// <summary>Load (once) and cache a catalog. A missing or corrupt catalog reads as empty and is logged.</summary>
     private static Dictionary<string, string> ReadCatalog(string catalog)
     {
-        lock (s_catalogs)
+        lock (Catalogs)
         {
-            if (s_catalogs.TryGetValue(catalog, out var cached))
+            if (Catalogs.TryGetValue(catalog, out var cached))
             {
                 return cached;
             }
@@ -159,8 +159,8 @@ public static partial class UiText
             Dictionary<string, string> entries;
             try
             {
-                string name = s_resourcePrefix + catalog + ".json";
-                using Stream stream = s_assembly?.GetManifestResourceStream(name)
+                string name = _resourcePrefix + catalog + ".json";
+                using Stream stream = _assembly?.GetManifestResourceStream(name)
                     ?? throw new InvalidDataException($"Missing embedded catalog {name}");
                 entries = JsonSerializer.Deserialize<Dictionary<string, string>>(stream) ?? [];
             }
@@ -170,7 +170,7 @@ public static partial class UiText
                 entries = [];
             }
 
-            s_catalogs.Add(catalog, entries);
+            Catalogs.Add(catalog, entries);
             return entries;
         }
     }

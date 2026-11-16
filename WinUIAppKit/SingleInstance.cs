@@ -9,12 +9,12 @@ namespace WinUIAppKit;
 public static class SingleInstance
 {
     // Held for the life of the process; releasing it would let a second copy start.
-    private static Mutex? s_mutex;
+    private static Mutex? _mutex;
 
     /// <summary>Claim the instance. Returns false when another copy already owns <paramref name="mutexName"/>.</summary>
     public static bool TryClaim(string mutexName)
     {
-        s_mutex = new Mutex(true, mutexName, out bool created);
+        _mutex = new Mutex(true, mutexName, out bool created);
         return created;
     }
 

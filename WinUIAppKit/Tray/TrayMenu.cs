@@ -9,7 +9,7 @@ namespace WinUIAppKit.Tray;
 public sealed class TrayMenu
 {
     private static readonly NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
-    private static bool s_darkModeEnabled;
+    private static bool _darkModeEnabled;
 
     private readonly List<(string? Text, Action? OnClick, bool Checked, bool Enabled)> _items = new();
 
@@ -76,12 +76,12 @@ public sealed class TrayMenu
     /// </summary>
     private static void EnableDarkMenus()
     {
-        if (s_darkModeEnabled)
+        if (_darkModeEnabled)
         {
             return;
         }
 
-        s_darkModeEnabled = true;
+        _darkModeEnabled = true;
         try
         {
             const int AllowDark = 1;

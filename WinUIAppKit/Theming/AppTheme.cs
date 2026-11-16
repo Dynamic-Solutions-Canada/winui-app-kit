@@ -21,7 +21,7 @@ public enum AppThemeChoice
 /// </summary>
 public static class AppTheme
 {
-    private static readonly global::Windows.UI.ViewManagement.UISettings s_uiSettings = new();
+    private static readonly global::Windows.UI.ViewManagement.UISettings UiSettings = new();
 
     /// <summary>The current choice.</summary>
     public static AppThemeChoice Current { get; private set; }
@@ -78,7 +78,7 @@ public static class AppTheme
             return true;
         }
 
-        var fg = s_uiSettings.GetColorValue(global::Windows.UI.ViewManagement.UIColorType.Foreground);
+        var fg = UiSettings.GetColorValue(global::Windows.UI.ViewManagement.UIColorType.Foreground);
         return fg.R > 128;
     }
 }

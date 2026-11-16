@@ -19,7 +19,7 @@ public static class Localize
 {
     private sealed record Binding(WeakReference<DependencyObject> Target, DependencyProperty Property);
 
-    private static readonly List<Binding> s_bindings = [];
+    private static readonly List<Binding> Bindings = [];
 
     /// <summary>TextBlock.Text.</summary>
     public static readonly DependencyProperty TextProperty = Register("Text");
@@ -49,8 +49,8 @@ public static class Localize
     {
         UiText.Changed += () =>
         {
-            s_bindings.RemoveAll(binding => !binding.Target.TryGetTarget(out _));
-            foreach (var binding in s_bindings.ToArray())
+            Bindings.RemoveAll(binding => !binding.Target.TryGetTarget(out _));
+            foreach (var binding in Bindings.ToArray())
             {
                 if (binding.Target.TryGetTarget(out var target))
                 {
@@ -66,14 +66,14 @@ public static class Localize
     private static void OnKeyChanged(DependencyObject target, DependencyPropertyChangedEventArgs args)
     {
         // Prune dead entries occasionally so long-lived apps that rebuild views don't accumulate them.
-        if (s_bindings.Count > 0 && s_bindings.Count % 256 == 0)
+        if (Bindings.Count > 0 && Bindings.Count % 256 == 0)
         {
-            s_bindings.RemoveAll(binding => !binding.Target.TryGetTarget(out _));
+            Bindings.RemoveAll(binding => !binding.Target.TryGetTarget(out _));
         }
 
         if (args.OldValue is null)
         {
-            s_bindings.Add(new Binding(new WeakReference<DependencyObject>(target), args.Property));
+            Bindings.Add(new Binding(new WeakReference<DependencyObject>(target), args.Property));
         }
 
         Apply(target, args.Property);

@@ -11,10 +11,10 @@ namespace WinUIAppKit;
 public static class AppEnvironment
 {
     private static readonly NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
-    private static readonly Lazy<bool> s_isPackaged = new(DetectPackaged);
+    private static readonly Lazy<bool> IsPackagedLazy = new(DetectPackaged);
 
     /// <summary>True when running with MSIX package identity.</summary>
-    public static bool IsPackaged => s_isPackaged.Value;
+    public static bool IsPackaged => IsPackagedLazy.Value;
 
     private static bool DetectPackaged()
     {
