@@ -9,7 +9,7 @@
     Microsoft.WindowsAppRuntime.1.8; moving off it means updating each app's manifest dependency.
   -->
   <ItemGroup>
-    <PackageVersion Include="Microsoft.WindowsAppSDK" Version="1.8.260209005" />
+    <PackageVersion Include="Microsoft.WindowsAppSDK" Version="1.8.260921001" />
     <PackageVersion Include="NLog" Version="6.2.2" />
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <!--
