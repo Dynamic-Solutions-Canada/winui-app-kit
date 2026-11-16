@@ -266,6 +266,36 @@ The check fails when:
 
 The kit runs the same script on its own catalogs with `--kit`.
 
+### Store listing check
+
+`scripts/check-listing.py` is the one Microsoft Store listing check (LIST-5, LIST-10, LIST-12). Apps run it as `check:listing`, part of `validate`, from their repo root: `"check:listing": "python3 external/winui-app-kit/scripts/check-listing.py"`. It reads a `listing` block in `windows-build.json`:
+
+```json
+"listing": {
+  "product_name": "My App",
+  "retired_names": ["Old Name"]
+}
+```
+
+| Key | Use |
+| --- | --- |
+| `product_name` | The title every locale must carry. Required |
+| `listing_path` | Default `store-assets/microsoft/listings.json` |
+| `catalog_dir` | The app's wording catalogs. Default: `localization.catalog_dir`; none means an English-only app |
+| `notes_dir` | Default `release-notes` |
+| `readme` | Default `README.md` |
+| `retired_names` | Earlier product names that must not appear in listing text (matched as written, so a lower-case search keyword is allowed) |
+
+The check fails when:
+
+- the listing isn't `schemaVersion` 1;
+- a localized app's listing lacks the nine identities from `build/languages.json`, in order, or its Canadian identities aren't exactly `{"copyFrom": ...}`, or its full records differ from its wording catalogs (an English-only app lists en-US alone);
+- a record lacks a field or has an extra one, such as `releaseNotes`;
+- a field is over the Microsoft Store's limits, including 21 keyword words combined;
+- caption counts differ between locales, or any text has an em dash or a retired name;
+- a title isn't the product name, or the README's header tagline isn't the first sentence of the en-US `shortDescription`;
+- the release notes for the current `<Version>` are missing for any wording catalog, have a heading, run over 1,500 characters, or include a file for a Canadian identity.
+
 ## Packaging
 
 `build/build-msix.ps1` is the one MSIX packaging script for every app (KIT-9, DIST-1). The app deletes its own script and points `package_script` in `windows-build.json` at the kit's; the shared Windows build tooling runs it for `build:desktop`, `package:desktop` and `install:desktop`. Everything that differs between apps is a `windows-build.json` key, listed with its default at the top of the script; the minimum is:
