@@ -40,4 +40,4 @@ The kit targets `net10.0-windows10.0.22000.0` and Windows App SDK 1.8. An app ma
 
 ## Licence
 
-PolyForm Noncommercial 1.0.0; see `LICENSE.md`.
+MIT; see [LICENSE](LICENSE). Copyright (c) 2026 Dynamic Solutions.
