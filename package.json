@@ -3,6 +3,7 @@
   "private": true,
   "license": "MIT",
   "scripts": {
+    "verify": "scripts/windows-build --build-only --configuration Release --platform x64 && scripts/windows-build --build-only --configuration Release --platform ARM64",
     "format": "scripts/dotnet format WinUIAppKit/WinUIAppKit.csproj",
     "format:check": "scripts/dotnet format WinUIAppKit/WinUIAppKit.csproj --verify-no-changes",
     "test": "scripts/run-tests",

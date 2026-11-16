@@ -39,9 +39,10 @@ The kit owns the plumbing below and nothing else: no app's pages, settings field
 | --- | --- | --- |
 | `npm run validate` | The gate CI runs on Linux: `format:check` (whitespace, `.editorconfig` style and analyzers through `dotnet format`) and `test` | That the library compiles for Windows |
 | `npm run format` | Rewrites files to the `.editorconfig` style | Anything; review the diff |
+| `npm run verify` | The library compiles for x64 and ARM64 in Release (warnings are errors), through the shared Windows build tooling | Behaviour; needs the Windows build host |
 | `npm test` | Every test project under `tests/` passes (none exist yet) | Windows-only behaviour |
 
-`scripts/dotnet` uses the host .NET SDK when there is one, otherwise the SDK container matching `global.json` (Docker needed). The Windows compile for x64 and ARM64 runs in CI (`windows-compile` in `.github/workflows/ci.yml`). Release and CI builds treat warnings as errors, and so does every app's Release build of the kit, so keep the kit warning-free.
+`scripts/dotnet` uses the host .NET SDK when there is one, otherwise the SDK container matching `global.json` (Docker needed). The same Windows compile runs in CI (`windows-compile` in `.github/workflows/ci.yml`); `verify` reaches the tooling through `scripts/windows-build` and `windows-build.json`. Release and CI builds treat warnings as errors, and so does every app's Release build of the kit, so keep the kit warning-free.
 
 To check a change against an app, copy the app into `.artifacts/` with this working tree in place of its `external/winui-app-kit`, then run the app's `verify:desktop` there. Never edit an app's submodule checkout. Tray, flyout and menu behaviour can only be checked in an installed app.
 
