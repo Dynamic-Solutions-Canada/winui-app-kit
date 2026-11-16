@@ -18,7 +18,9 @@ public readonly record struct TrayAnchor(int X, int Y);
 /// </list>
 /// Click policy: the first click of a double-click is reported as <see cref="Clicked"/> (it can't be
 /// told apart in time), then the double-click as <see cref="DoubleClicked"/>, and the trailing
-/// button-up of the double-click is swallowed so it can't toggle anything a second time.
+/// button-up of the double-click is swallowed so it can't toggle anything a second time. Only a
+/// button-up within the system double-click time is swallowed, so if that button-up never reaches
+/// the icon the next real click still counts.
 /// </summary>
 public sealed class TrayIcon : IDisposable
 {
@@ -34,7 +36,13 @@ public sealed class TrayIcon : IDisposable
 
     private IntPtr _hIcon;
     private string _tooltip = "";
-    private bool _added, _swallowNextUp, _disposed;
+    private bool _added, _disposed;
+
+    /// <summary>
+    /// Until when (Environment.TickCount64) a button-up is the tail of a double-click and is ignored.
+    /// Time-limited so a tail that lands off the icon can't eat the next real click.
+    /// </summary>
+    private long _swallowUpUntilMs;
 
     /// <param name="hostHwnd">The window that receives tray messages (lives as long as the icon).</param>
     /// <param name="id">Stable per-app GUID. Never reuse another app's GUID: Windows treats them as the same icon.</param>
@@ -220,9 +228,9 @@ public sealed class TrayIcon : IDisposable
         switch (notification)
         {
             case WM_LBUTTONUP:
-                if (_swallowNextUp)
+                if (Environment.TickCount64 < _swallowUpUntilMs)
                 {
-                    _swallowNextUp = false;
+                    _swallowUpUntilMs = 0;
                     return;
                 }
                 var clickAnchor = GetAnchor();
@@ -230,7 +238,7 @@ public sealed class TrayIcon : IDisposable
                 break;
 
             case WM_LBUTTONDBLCLK:
-                _swallowNextUp = true;
+                _swallowUpUntilMs = Environment.TickCount64 + GetDoubleClickTime();
                 var doubleAnchor = GetAnchor();
                 _dispatcher.TryEnqueue(() => DoubleClicked?.Invoke(doubleAnchor));
                 break;
