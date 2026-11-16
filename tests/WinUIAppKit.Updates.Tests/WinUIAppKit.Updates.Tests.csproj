@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Portable harness for the update check's release filtering and version comparison (TEST-2). It
+    links the one production file that holds that logic, so it runs on Linux.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="../../WinUIAppKit/Updates/GitHubReleases.cs" Link="Linked/GitHubReleases.cs" />
+  </ItemGroup>
+</Project>

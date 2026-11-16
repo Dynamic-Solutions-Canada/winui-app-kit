@@ -16,6 +16,7 @@ The kit owns the plumbing below and nothing else: no app's pages, settings field
 | Tray flyout | `FlyoutController` | `WinUIAppKit/Windowing/FlyoutController.cs` |
 | App start, host window and exit | `AppBootstrap`, `HostWindow` | `WinUIAppKit/Hosting/` |
 | Confirmations | `ConfirmDialog` | `WinUIAppKit/Windowing/ConfirmDialog.cs` |
+| Update check | `UpdateService`, `GitHubReleases` | `WinUIAppKit/Updates/` |
 | Window chrome and placement | `WindowChrome`, `WindowIcon`, `WindowPlacement` | `WinUIAppKit/Windowing/WindowChrome.cs` |
 | Settings file and credentials | `JsonSettingsStore<T>`, `ProtectedStore`, `AtomicFile` | `WinUIAppKit/Settings/` |
 | Start with Windows | `StartupRegistration`, `StartupStatus` | `WinUIAppKit/Startup/` |
@@ -35,6 +36,7 @@ The kit owns the plumbing below and nothing else: no app's pages, settings field
 - **`build/` is imported by every app.** A change there changes every app's build at its next pin bump: keep it domain-neutral, and treat anything that can fail a clean app build (a new analyzer setting, a raised floor) as a major version.
 - **Window procedures:** never show UI inside a subclass procedure; defer with `DispatcherQueue.TryEnqueue`. Each kit subclass uses its own fixed subclass id (`0x7AA1` tray, `0x7AA2` flyout, `0x7AA3` host) so it never collides with an app's own subclass.
 - Keep delegates passed to native code (`SUBCLASSPROC`) in fields so they are not garbage-collected.
+- **`GitHubReleases.cs` stays self-contained too,** so its harness runs on Linux; the network call and the Store launch live in `UpdateService`.
 - **`ProtectedStore.cs` and `AtomicFile.cs` stay self-contained:** no NLog, WinUI or other kit types, because apps link them into second processes and test harnesses.
 - **Windows 10 floor (build 19045):** a call that needs Windows 11 goes in a helper marked `[SupportedOSPlatform("windows10.0.22000")]` and is called only behind `OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000)`, so the analyzer rejects an unguarded call. Win32 and Windows SDK calls added after build 19041 carry no platform attribute, so check each new one by hand. List every degraded feature in the README's "Windows 10" table.
 - **Localization:** the kit holds the mechanism only. Each app owns its language list, catalogs and keys; never put app wording in the kit. `UiText.SetOverride` and `Changed` run on the UI thread.
@@ -74,6 +76,7 @@ The kit is released as an annotated `vX.Y.Z` tag that apps pin; the version live
 | How an app adds or references the kit, or the target framework | README "Using it" |
 | A file in `build/`, or what an app must do to import it | README "Shared build configuration" |
 | Settings store or protected store behaviour | README "Settings" and the harness in `tests/WinUIAppKit.Settings.Tests/` |
+| Update check behaviour | README "Checking for updates" and the harness in `tests/WinUIAppKit.Updates.Tests/` |
 | A feature that behaves differently on Windows 10 | README "Windows 10" |
 | The Windows App SDK line | The rule above and README "Using it" |
 | A rule for kit changes | README "Rules for changes", or "Conventions and gotchas" above if only an agent needs it |

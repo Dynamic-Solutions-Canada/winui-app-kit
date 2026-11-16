@@ -19,6 +19,7 @@ Shared plumbing for small WinUI 3 desktop apps that live in the system tray: the
 | Localization | `SupportedLanguages`, `UiText`, `Localize`, `LocalizedMessage` | Interface text from per-language JSON catalogs embedded in the app, chosen from the user's override or Windows' languages; XAML attached properties that relabel open windows live; messages stored as key plus values so they follow a language change |
 | App | `AppBootstrap`, `HostWindow` | Crash logging, then settings, then the hidden host window, in that order; the host is a 1x1 off-screen tool window that answers a second launch and runs the app's exit steps before `Environment.Exit` |
 | App | `AppEnvironment`, `SingleInstance` | Packaged or not, version, data folders, one running copy |
+| Updates | `UpdateService`, `UpdateCheckResult`, `GitHubReleases` | The About page's "Check for updates": the Store's updates page when packaged, the app's GitHub Releases when not; never in the background |
 | Logging | `AppLogging` | Names the app's data folder for the shared NLog config (one log file per launch beside `settings.json`, keeping the current file and three older ones), and opens that folder for "Open logs folder" |
 
 Win32 declarations shared by these live in `Interop/NativeMethods.cs`.
@@ -117,6 +118,32 @@ _host.AddExitStep("remove the tray icon", _tray.Dispose);
 - **Exit:** `Exit` runs every exit step in the order added (a failing step is logged and the rest still run), flushes the log, then ends the process. Put all teardown in exit steps (closing connections, unregistering notifications, removing the tray icon), never after `Exit`.
 - **Confirmations:** `ConfirmDialog.ConfirmAsync(window, title, body, confirmText, cancelText)`. Name the action on the confirm button. All the text comes from the app's own catalogs.
 - **Tray icon:** `TrayIconRasterizer.Render(TrayIcon.IconPixelSize, (g, side) => ...)` draws the app's artwork on a canvas `side` pixels square, using `Ink` and `Surface` for taskbar-aware colours. Re-render on `TrayIcon.RenderNeeded` and when the taskbar colour changes.
+
+## Checking for updates
+
+Each app creates one service with its repository, defined once in the app (BRAND-5), and calls it only from the About page's "Check for updates" button (DIST-6). Nothing checks in the background.
+
+```csharp
+static readonly UpdateService Updates = new("<owner>", "<repo>");   // a monorepo lane adds its tag prefix: new(owner, repo, "desktop-")
+
+var result = await Updates.CheckForUpdatesAsync();
+switch (result.Outcome)
+{
+    case UpdateCheckOutcome.UpdateAvailable: /* show result.LatestVersion; a button calls UpdateService.OpenReleasePage(result) */ break;
+    case UpdateCheckOutcome.UpToDate: /* "You have the latest version" */ break;
+    case UpdateCheckOutcome.Failed: /* "Couldn't check for updates" */ break;
+    case UpdateCheckOutcome.OpenedStore: break;   // packaged: the Store's updates page is open
+}
+```
+
+- **Packaged builds:** the check opens the Microsoft Store's updates page. The Store owns updating packaged copies.
+- **Unpackaged builds:**
+  - It lists the repository's GitHub Releases and picks the newest published, non-prerelease release by version (1.10.0 beats 1.9.0).
+  - Only tags for the app's lane count: `vX.Y.Z`, or `<prefix>vX.Y.Z` with a tag prefix.
+  - A repository with no releases counts as up to date.
+- **Comparison:** major, minor and patch only, so a dev build's MSIX revision never looks like an update.
+- **The running version:** `AppEnvironment.Version` unless the app passes another.
+- **Failures:** the method never throws. Network, rate-limit and parse failures all give `Failed` and are logged.
 
 ## Settings
 
