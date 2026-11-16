@@ -6,8 +6,8 @@ namespace WinUIAppKit.Windowing;
 
 /// <summary>
 /// The one way an app asks a yes/no confirmation (UI-6). The safe answer is the only default: Enter
-/// picks Cancel, so a stray key press never confirms a destructive action. The app supplies every
-/// string, through its own localization.
+/// picks Cancel, so a stray key press never confirms a destructive action. The app supplies the
+/// question and the confirm label through its own localization; Cancel is the kit's shared label.
 /// </summary>
 public static class ConfirmDialog
 {
@@ -24,9 +24,9 @@ public static class ConfirmDialog
     /// <param name="title">The question.</param>
     /// <param name="body">What will happen, in a sentence or two.</param>
     /// <param name="confirmText">The confirm button, naming the action ("Delete", "Stop"), not "OK".</param>
-    /// <param name="cancelText">The cancel button, in the app's wording.</param>
+    /// <param name="cancelText">The cancel button; null for the kit's shared "Cancel" label (<c>kit.dialog.cancel</c>).</param>
     /// <returns>True only when the user pressed the confirm button.</returns>
-    public static async Task<bool> ConfirmAsync(Window window, string title, string body, string confirmText, string cancelText)
+    public static async Task<bool> ConfirmAsync(Window window, string title, string body, string confirmText, string? cancelText = null)
     {
         if (window.Content is not FrameworkElement root || root.XamlRoot is null)
         {
@@ -45,7 +45,7 @@ public static class ConfirmDialog
             Title = title,
             Content = new TextBlock { Text = body, TextWrapping = TextWrapping.Wrap },
             PrimaryButtonText = confirmText,
-            CloseButtonText = cancelText,
+            CloseButtonText = cancelText ?? Localization.UiText.Get("kit.dialog.cancel"),
             DefaultButton = ContentDialogButton.Close,
             RequestedTheme = root.ActualTheme,
         };

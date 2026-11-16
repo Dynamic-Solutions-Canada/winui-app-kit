@@ -236,6 +236,34 @@ The shell, the About page and the settings every app has use labels the kit owns
 
 The full list, with every translation, is in `WinUIAppKit/Localization/Catalogs/`. Translations new in the kit are machine translations, not yet reviewed.
 
+### Interface text check
+
+`scripts/check-localization.py` is the one catalog check (LOC-9). Apps run it as `check:l10n`, part of `validate`, from their repo root: `"check:l10n": "python3 external/winui-app-kit/scripts/check-localization.py"`. It reads a `localization` block in `windows-build.json`:
+
+```json
+"localization": {
+  "catalog_dir": "MyApp/Localization/Catalogs",
+  "unused_ok": ["promo.*"]
+}
+```
+
+| Key | Use |
+| --- | --- |
+| `catalog_dir` | The app's `<catalog>.json` files. Required |
+| `source_dirs` | Folders searched for keys. Default: the project's folder |
+| `english_keys` | `true` when the English text is the key, so each en-US value must equal its key |
+| `extra_key_patterns` | Regexes with one group, for keys the code builds from constants |
+| `unused_ok` | Key globs used by text matching rather than as literals |
+
+The check fails when:
+
+- a catalog's keys differ from en-US, a value is empty, a translation's `{{placeholders}}` differ, or any text has an em dash;
+- code or XAML uses a key no catalog defines, or a catalog key is never used. It counts `UiText.Get`, `Format` and `Source` calls, `Localize.SetX` calls, `l10n:Localize` attributes and the extra patterns;
+- the app defines a `kit.` key, or uses one the kit lacks;
+- the manifest's languages, or the catalog files on disk, differ from `build/languages.json`, or from en-US alone for an English-only app (LOC-3).
+
+The kit runs the same script on its own catalogs with `--kit`.
+
 ## Packaging
 
 `build/build-msix.ps1` is the one MSIX packaging script for every app (KIT-9, DIST-1). The app deletes its own script and points `package_script` in `windows-build.json` at the kit's; the shared Windows build tooling runs it for `build:desktop`, `package:desktop` and `install:desktop`. Everything that differs between apps is a `windows-build.json` key, listed with its default at the top of the script; the minimum is:
@@ -274,7 +302,7 @@ _host.AddExitStep("remove the tray icon", _tray.Dispose);
 - **Crash logging:** `AppBootstrap.Launch` installs the two unhandled-exception handlers (log, then flush) before anything else runs. WinUI exceptions are marked handled so the app keeps running; call `InstallCrashLogging` yourself to choose otherwise.
 - **Host window:** `HostWindow` gives the host the title `SingleInstance.SignalRunningInstance` looks for. Pass the same title and message name to both.
 - **Exit:** `Exit` runs every exit step in the order added (a failing step is logged and the rest still run), flushes the log, then ends the process. Put all teardown in exit steps (closing connections, unregistering notifications, removing the tray icon), never after `Exit`.
-- **Confirmations:** `ConfirmDialog.ConfirmAsync(window, title, body, confirmText, cancelText)`. Name the action on the confirm button. All the text comes from the app's own catalogs.
+- **Confirmations:** `ConfirmDialog.ConfirmAsync(window, title, body, confirmText)`. Name the action on the confirm button; the question and that label come from the app's own catalogs, and Cancel is the kit's shared label unless the app passes `cancelText`.
 - **Tray icon:** `TrayIconRasterizer.Render(TrayIcon.IconPixelSize, (g, side) => ...)` draws the app's artwork on a canvas `side` pixels square, using `Ink` and `Surface` for taskbar-aware colours. Re-render on `TrayIcon.RenderNeeded` and when the taskbar colour changes.
 
 ## Checking for updates

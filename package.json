@@ -7,7 +7,8 @@
     "format": "scripts/dotnet format WinUIAppKit/WinUIAppKit.csproj && scripts/dotnet format Xaml/CompileCheck/WinUIAppKit.XamlCompileCheck.csproj",
     "format:check": "scripts/dotnet format WinUIAppKit/WinUIAppKit.csproj --verify-no-changes && scripts/dotnet format Xaml/CompileCheck/WinUIAppKit.XamlCompileCheck.csproj --verify-no-changes",
     "test": "scripts/run-tests",
-    "validate": "npm run format:check && npm run check:gitignore && npm test",
-    "check:gitignore": "scripts/check-gitignore"
+    "validate": "npm run format:check && npm run check:gitignore && npm run check:l10n && npm test",
+    "check:gitignore": "scripts/check-gitignore",
+    "check:l10n": "python3 scripts/check-localization.py --kit"
   }
 }

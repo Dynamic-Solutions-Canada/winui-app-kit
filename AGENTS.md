@@ -45,7 +45,7 @@ The kit owns the plumbing below and nothing else: no app's pages, settings field
 
 | Command | Proves | Does not prove |
 | --- | --- | --- |
-| `npm run validate` | The gate CI runs on Linux: `format:check` (whitespace, `.editorconfig` style and analyzers, library and shared XAML code-behind), `check:gitignore` and `test` | That anything compiles for Windows |
+| `npm run validate` | The gate CI runs on Linux: `format:check` (whitespace, `.editorconfig` style and analyzers, library and shared XAML code-behind), `check:gitignore`, `check:l10n` (the kit's catalogs against its code, through the same script apps run) and `test` | That anything compiles for Windows |
 | `npm run format` | Rewrites files to the `.editorconfig` style | Anything; review the diff |
 | `npm run verify` | The library and the shared XAML compile for x64 and ARM64 in Release (warnings are errors), by building `Xaml/CompileCheck` through the shared Windows build tooling | Behaviour; needs the Windows build host |
 | `npm test` | Every portable harness under `tests/` passes (each has a README saying what it proves) | Windows-only behaviour: DPAPI, packaged paths, windows |
