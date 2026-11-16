@@ -30,6 +30,7 @@ The kit owns the plumbing below and nothing else: no app's pages, settings field
 - **Windows App SDK stays on the 1.8 line** while every consuming app ships with `Microsoft.WindowsAppRuntime.1.8`. Raising it means updating each app's manifest dependency.
 - **Window procedures:** never show UI inside a subclass procedure; defer with `DispatcherQueue.TryEnqueue`. Each kit subclass uses its own fixed subclass id (`0x7AA1` tray, `0x7AA2` flyout) so it never collides with an app's own subclass.
 - Keep delegates passed to native code (`SUBCLASSPROC`) in fields so they are not garbage-collected.
+- **Windows 10 floor (build 19045):** a call that needs Windows 11 goes in a helper marked `[SupportedOSPlatform("windows10.0.22000")]` and is called only behind `OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000)`, so the analyzer rejects an unguarded call. Win32 and Windows SDK calls added after build 19041 carry no platform attribute, so check each new one by hand. List every degraded feature in the README's "Windows 10" table.
 - **Localization:** the kit holds the mechanism only. Each app owns its language list, catalogs and keys; never put app wording in the kit. `UiText.SetOverride` and `Changed` run on the UI thread.
 - **Behaviour apps rely on is documented in the README's "Gotchas" section.** Apps link to it instead of keeping their own copy, so a change to that behaviour updates the README in the same commit.
 
@@ -65,6 +66,7 @@ The kit is released as an annotated `vX.Y.Z` tag that apps pin; the version live
 | A public type added, renamed or removed | README "What's in it" table and the Architecture table above |
 | Behaviour an app relies on (identity values, flyout lifetime, language resolution, settings serialization, startup) | README "Gotchas" |
 | How an app adds or references the kit, or the target framework | README "Using it" |
+| A feature that behaves differently on Windows 10 | README "Windows 10" |
 | The Windows App SDK line | The rule above and README "Using it" |
 | A rule for kit changes | README "Rules for changes", or "Conventions and gotchas" above if only an agent needs it |
 | A script in `package.json` or `scripts/`, or a CI job | The Commands table above |

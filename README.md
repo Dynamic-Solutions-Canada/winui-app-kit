@@ -31,7 +31,18 @@ git -C external/winui-app-kit checkout vX.Y.Z
 <ProjectReference Include="..\external\winui-app-kit\WinUIAppKit\WinUIAppKit.csproj" />
 ```
 
-The kit targets `net10.0-windows10.0.22000.0` and Windows App SDK 1.8. An app may use a newer SDK; NuGet then resolves the higher version for both.
+The kit targets `net10.0-windows10.0.22000.0` and Windows App SDK 1.8, and runs on Windows 10 22H2 (build 19045) and later; see "Windows 10". An app may use a newer SDK; NuGet then resolves the higher version for both.
+
+## Windows 10
+
+The kit's minimum is Windows 10 22H2 (build 19045), so an app whose manifest allows Windows 10 can use all of it. Each app's own minimum is still set by its `Package.appxmanifest`. Features that need Windows 11 check the build at runtime and degrade without throwing:
+
+| Feature | Windows 11 | Windows 10 22H2 |
+| --- | --- | --- |
+| `FlyoutController` corners | Rounded by DWM | Square (the rounded-corner attribute is Windows 11 only) |
+| `FlyoutController` backdrop | Desktop acrylic | Desktop acrylic when the system reports support; otherwise the flyout shows its content's own background. With Windows' transparency effects off, both show a solid colour |
+
+Everything else behaves the same on both: the tray icon and its dark menu, flyout placement (including a taskbar on any screen edge), start with Windows, theme switching, window chrome, settings and localization.
 
 ## Gotchas
 

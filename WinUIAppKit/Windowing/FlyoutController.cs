@@ -1,3 +1,4 @@
+using System.Runtime.Versioning;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using WinRT.Interop;
@@ -7,7 +8,7 @@ namespace WinUIAppKit.Windowing;
 
 /// <summary>
 /// Turns an ordinary WinUI <see cref="Window"/> into a tray flyout: context-menu presenter (no title
-/// bar), desktop acrylic, rounded DWM corners with a shadow, hidden from Alt+Tab, placed next to the taskbar beside its anchor, and dismissed on
+/// bar), desktop acrylic, rounded DWM corners with a shadow (square corners on Windows 10), hidden from Alt+Tab, placed next to the taskbar beside its anchor, and dismissed on
 /// deactivation or Esc.
 /// <para>
 /// It is never hidden with SW_HIDE: when closed it is cloaked and parked off-screen, so WinUI keeps its
@@ -17,6 +18,8 @@ namespace WinUIAppKit.Windowing;
 /// </summary>
 public sealed class FlyoutController
 {
+    private static readonly NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
+
     /// <summary>A click on the tray icon deactivates the flyout first; ignore a toggle that soon after.</summary>
     private static readonly TimeSpan ReopenGuard = TimeSpan.FromMilliseconds(300);
     private static readonly UIntPtr SubclassId = 0x7AA2;
@@ -78,12 +81,33 @@ public sealed class FlyoutController
         AppWindow.SetPresenter(presenter);
         AppWindow.IsShownInSwitchers = false;
 
-        _window.SystemBackdrop = new Microsoft.UI.Xaml.Media.DesktopAcrylicBackdrop();
-        int corner = DWMWCP_ROUND;
-        DwmSetWindowAttribute(_hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref corner, sizeof(int));
+        // Acrylic needs system support; without it the window keeps the content's own background.
+        if (Microsoft.UI.Composition.SystemBackdrops.DesktopAcrylicController.IsSupported())
+        {
+            _window.SystemBackdrop = new Microsoft.UI.Xaml.Media.DesktopAcrylicBackdrop();
+        }
+        else
+        {
+            Logger.Info("Desktop acrylic is not supported here; the flyout uses its content background");
+        }
+
+        // Rounded DWM corners exist from Windows 11 (build 22000); Windows 10 keeps square corners.
+        if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000))
+        {
+            RoundCorners(_hwnd);
+        }
+
         var margins = new MARGINS { Left = 1, Right = 1, Top = 1, Bottom = 1 };
         DwmExtendFrameIntoClientArea(_hwnd, ref margins);
         AddExStyle(_hwnd, WS_EX_TOOLWINDOW);
+    }
+
+    /// <summary>Ask DWM for rounded corners. The attribute is Windows 11 only, so callers check the build first.</summary>
+    [SupportedOSPlatform("windows10.0.22000")]
+    private static void RoundCorners(IntPtr hwnd)
+    {
+        int corner = DWMWCP_ROUND;
+        DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref corner, sizeof(int));
     }
 
     // ── Show / hide ──────────────────────────────────────────────────────

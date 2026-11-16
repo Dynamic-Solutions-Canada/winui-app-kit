@@ -1,6 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0-windows10.0.22000.0</TargetFramework>
+    <!--
+      Minimum supported Windows: 10 22H2 (build 19045), so every app can use the kit (PLAT-6, D-018).
+      The platform-compatibility analyzer (CA1416) checks every annotated call against this floor;
+      Win32 calls are not annotated, so Windows 11-only ones check OsVersion at runtime instead.
+    -->
+    <SupportedOSPlatformVersion>10.0.19045.0</SupportedOSPlatformVersion>
+    <TargetPlatformMinVersion>$(SupportedOSPlatformVersion)</TargetPlatformMinVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWinUI>true</UseWinUI>
