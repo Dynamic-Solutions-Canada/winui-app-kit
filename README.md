@@ -8,15 +8,18 @@ Shared plumbing for small WinUI 3 desktop apps that live in the system tray: the
 |---|---|---|
 | Tray | `TrayIcon` | Notification-area icon with a stable GUID, re-added after Explorer restarts, crisp at any scaling, click / double-click / context-menu events |
 | Tray | `TrayMenu` | Native right-click menu that follows dark mode |
+| Tray | `TrayIconRasterizer` | Turns tray artwork drawn in code into a crisp PNG at the tray's exact pixel size, with the taskbar ink colours and a rounded-rectangle helper |
 | Windows | `FlyoutController` | Turns a `Window` into a tray flyout: acrylic, rounded corners, placed by the taskbar, dismissed on focus loss or Esc, parked off-screen for instant reopening |
+| Windows | `ConfirmDialog` | The one yes/no confirmation: Cancel is the default button, one question per window, and "no" when the window closes |
 | Windows | `WindowChrome`, `WindowIcon`, `WindowPlacement` | Sharp window icons, saved size and position (ignored if the monitor is gone), bring-to-front |
 | Settings | `JsonSettingsStore<T>`, `SettingsLoadResult<T>` | Atomic JSON load/save of the app's own settings class, with a schema version, ordered migrations, backups, and first run, unreadable and reset reported apart |
 | Settings | `ProtectedStore`, `IDataProtector`, `AtomicFile` | Credentials kept outside `settings.json`, encrypted to the Windows user; atomic file replacement |
 | Startup | `StartupRegistration`, `StartupStatus` | Start with Windows for packaged (startup task) and unpackaged (Run key) builds; reports when the user (in Windows Settings) or a policy decides instead of the app |
 | Theming | `AppTheme` | System / light / dark choice applied to every open window |
 | Localization | `SupportedLanguages`, `UiText`, `Localize`, `LocalizedMessage` | Interface text from per-language JSON catalogs embedded in the app, chosen from the user's override or Windows' languages; XAML attached properties that relabel open windows live; messages stored as key plus values so they follow a language change |
+| App | `AppBootstrap`, `HostWindow` | Crash logging, then settings, then the hidden host window, in that order; the host is a 1x1 off-screen tool window that answers a second launch and runs the app's exit steps before `Environment.Exit` |
 | App | `AppEnvironment`, `SingleInstance` | Packaged or not, version, data folders, one running copy |
-| Logging | `AppLogging` | Names the app's data folder for the shared NLog config: one log file per launch beside `settings.json`, keeping the current file and three older ones |
+| Logging | `AppLogging` | Names the app's data folder for the shared NLog config (one log file per launch beside `settings.json`, keeping the current file and three older ones), and opens that folder for "Open logs folder" |
 
 Win32 declarations shared by these live in `Interop/NativeMethods.cs`.
 
@@ -93,6 +96,27 @@ What each file sets:
 | `.editorconfig` (repo root) | The family's code style |
 
 An app never hand-edits any of these, or keeps its own copy of one: the build files and `NLog.config` are used straight from the submodule, and `.editorconfig` and the `.gitignore` block are copied unchanged. A change goes into the kit and reaches every app with the next pin bump. Two switches exist for an app that cannot take a default yet, each set in its `Directory.Build.props` with a comment saying why: `WinUIAppKitWarningsAsErrors` (`false` until the app builds warning-free) and `WinUIAppKitIncludeNLogConfig` (`false` for an executable that must not ship the log config).
+
+## Starting a resident app
+
+```csharp
+// App.xaml.cs
+protected override void OnLaunched(LaunchActivatedEventArgs args) =>
+    _host = AppBootstrap.Launch(this, RestoreSettings, () => new MainWindow());
+
+// MainWindow constructor, after InitializeComponent and the single-instance check
+_host = new HostWindow(this, "My App Host", "MyApp_Show");
+_host.ShowRequested += OpenSettingsWindow;
+_host.AddExitStep("save settings", SettingsManager.Save);
+_host.AddExitStep("remove the tray icon", _tray.Dispose);
+// Tray menu: .Add(UiText.Get("Open logs folder"), AppLogging.OpenLogsFolder) ... .Add(UiText.Get("Exit"), _host.Exit)
+```
+
+- **Crash logging:** `AppBootstrap.Launch` installs the two unhandled-exception handlers (log, then flush) before anything else runs. WinUI exceptions are marked handled so the app keeps running; call `InstallCrashLogging` yourself to choose otherwise.
+- **Host window:** `HostWindow` gives the host the title `SingleInstance.SignalRunningInstance` looks for. Pass the same title and message name to both.
+- **Exit:** `Exit` runs every exit step in the order added (a failing step is logged and the rest still run), flushes the log, then ends the process. Put all teardown in exit steps (closing connections, unregistering notifications, removing the tray icon), never after `Exit`.
+- **Confirmations:** `ConfirmDialog.ConfirmAsync(window, title, body, confirmText, cancelText)`. Name the action on the confirm button. All the text comes from the app's own catalogs.
+- **Tray icon:** `TrayIconRasterizer.Render(TrayIcon.IconPixelSize, (g, side) => ...)` draws the app's artwork on a canvas `side` pixels square, using `Ink` and `Surface` for taskbar-aware colours. Re-render on `TrayIcon.RenderNeeded` and when the taskbar colour changes.
 
 ## Settings
 

@@ -18,10 +18,17 @@
     <!-- Public members must be documented (CS1591 is a warning); only Interop/NativeMethods.cs opts out. -->
   </PropertyGroup>
 
+  <!--
+    System.Drawing for TrayIconRasterizer and Windows data protection for ProtectedStore. Every app in
+    the family already references this framework, so the kit adds nothing to their packages.
+  -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App" />
+  </ItemGroup>
+
   <!-- Versions come from build/WinUIAppKit.Packages.props (central package management). -->
   <ItemGroup>
     <PackageReference Include="Microsoft.WindowsAppSDK" />
     <PackageReference Include="NLog" />
-    <PackageReference Include="System.Security.Cryptography.ProtectedData" />
   </ItemGroup>
 </Project>

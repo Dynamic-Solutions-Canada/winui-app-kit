@@ -26,5 +26,19 @@ public static class AppLogging
         }
 
         NLog.GlobalDiagnosticsContext.Set(DataFolderKey, dataFolderName);
+        _dataFolderName = dataFolderName;
     }
+
+    /// <summary>
+    /// Open the folder holding the log files in Explorer (LOG-8): the "Open logs folder" action on the
+    /// About page and in the tray menu. Opens the real on-disk folder, since a packaged app's %AppData%
+    /// is redirected and Explorer would not find the logs at the path the app uses.
+    /// </summary>
+    public static void OpenLogsFolder() =>
+        AppEnvironment.OpenFolder(AppEnvironment.PhysicalDataDirectory(DataFolderName));
+
+    /// <summary>The folder name given to <see cref="UseDataFolder"/>, or the process name the shared config falls back to.</summary>
+    public static string DataFolderName => _dataFolderName ?? System.Diagnostics.Process.GetCurrentProcess().ProcessName;
+
+    private static string? _dataFolderName;
 }
