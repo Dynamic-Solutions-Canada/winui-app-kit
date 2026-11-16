@@ -14,11 +14,23 @@ namespace WinUIAppKit.Localization;
 /// Look up only app-owned keys. Text from users, files or other programs is passed as a
 /// <see cref="Format"/> value, never as a key.
 /// </para>
+/// <para>
+/// Keys starting with <see cref="KitKeyPrefix"/> are the shared labels the kit owns (LOC-7, D-072). They
+/// are read from the kit's own catalogs, never from the app's, so a shared label reads the same in
+/// every app; an app does not define <c>kit.</c> keys.
+/// </para>
 /// </summary>
 public static partial class UiText
 {
     private static readonly NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
     private static readonly Dictionary<string, Dictionary<string, string>> Catalogs = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, Dictionary<string, string>> KitCatalogs = new(StringComparer.Ordinal);
+
+    /// <summary>The prefix of the shared labels the kit owns and translates.</summary>
+    public const string KitKeyPrefix = "kit.";
+
+    /// <summary>The catalog the kit falls back to for a shared label, and the source wording.</summary>
+    private const string KitDefaultCatalog = "en-US";
 
     private static Assembly? _assembly;
     private static string _resourcePrefix = "";
@@ -78,6 +90,11 @@ public static partial class UiText
     /// <summary>The text for <paramref name="key"/> in the current language.</summary>
     public static string Get(string key)
     {
+        if (key.StartsWith(KitKeyPrefix, StringComparison.Ordinal))
+        {
+            return GetKitText(key);
+        }
+
         if (_languages is null)
         {
             return key;
@@ -100,6 +117,11 @@ public static partial class UiText
     /// <summary>The default-language (source) text for <paramref name="key"/>, for matching fixed English copy.</summary>
     public static string Source(string key)
     {
+        if (key.StartsWith(KitKeyPrefix, StringComparison.Ordinal))
+        {
+            return ReadKitCatalog(KitDefaultCatalog).GetValueOrDefault(key) ?? key;
+        }
+
         if (_languages is null)
         {
             return key;
@@ -145,6 +167,52 @@ public static partial class UiText
     }
 
     private static string Resolve() => Override ?? Languages.Resolve(PreferredLanguages());
+
+    /// <summary>
+    /// A shared label from the kit's catalogs: the current language's catalog, then the kit's en-US.
+    /// An app language the kit has no catalog for reads the kit's en-US.
+    /// </summary>
+    private static string GetKitText(string key)
+    {
+        string catalog = _languages is null ? KitDefaultCatalog : Languages.CatalogFor(Locale);
+        if (ReadKitCatalog(catalog).TryGetValue(key, out string? text)
+            || ReadKitCatalog(KitDefaultCatalog).TryGetValue(key, out text))
+        {
+            return text;
+        }
+
+        Logger.Warn("Missing kit interface text {Key}", key);
+        return key;
+    }
+
+    /// <summary>The kit's embedded catalogs, which hold only the shared labels. A catalog the kit lacks reads as empty.</summary>
+    private static Dictionary<string, string> ReadKitCatalog(string catalog)
+    {
+        lock (KitCatalogs)
+        {
+            if (KitCatalogs.TryGetValue(catalog, out var cached))
+            {
+                return cached;
+            }
+
+            Dictionary<string, string> entries = [];
+            try
+            {
+                using Stream? stream = typeof(UiText).Assembly.GetManifestResourceStream($"WinUIAppKit.Catalogs.{catalog}.json");
+                if (stream is not null)
+                {
+                    entries = JsonSerializer.Deserialize<Dictionary<string, string>>(stream) ?? [];
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn(ex, "Kit language catalog {Catalog} unavailable", catalog);
+            }
+
+            KitCatalogs.Add(catalog, entries);
+            return entries;
+        }
+    }
 
     /// <summary>Load (once) and cache a catalog. A missing or corrupt catalog reads as empty and is logged.</summary>
     private static Dictionary<string, string> ReadCatalog(string catalog)

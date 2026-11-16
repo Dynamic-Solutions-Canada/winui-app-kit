@@ -54,6 +54,7 @@ jobs:
           filters: |
             build:
               - 'WinUIAppKit/**'
+              - 'Xaml/**'
               - 'Directory.Build.props'
               - 'Directory.Build.targets'
               - 'Directory.Packages.props'
@@ -84,5 +85,6 @@ jobs:
 
       # Called directly: the WSL build bridge that local Windows builds use is not available on a runner.
       # Release, so warnings are errors (STYLE-7).
-      - name: Compile the library
-        run: dotnet build WinUIAppKit/WinUIAppKit.csproj --configuration Release -p:Platform=${{ matrix.platform }}
+      # The XAML compile check builds the library through its project reference, then the shared XAML.
+      - name: Compile the library and the shared XAML
+        run: dotnet build Xaml/CompileCheck/WinUIAppKit.XamlCompileCheck.csproj --configuration Release -p:Platform=${{ matrix.platform }}

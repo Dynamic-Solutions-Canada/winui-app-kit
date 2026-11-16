@@ -51,8 +51,9 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Compile the library
-        run: dotnet build WinUIAppKit/WinUIAppKit.csproj --configuration Release -p:Platform=${{ matrix.platform }}
+      # The XAML compile check builds the library through its project reference, then the shared XAML.
+      - name: Compile the library and the shared XAML
+        run: dotnet build Xaml/CompileCheck/WinUIAppKit.XamlCompileCheck.csproj --configuration Release -p:Platform=${{ matrix.platform }}
 
   release:
     name: Create GitHub Release

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Shared XAML from WinUI App Kit (KIT-5). The pages and styles here are compiled by the app that imports
+  this file, as part of its own project, so no app needs library .xbf or PRI handling. Import it from the
+  app's csproj (see "Shared XAML" in the kit README):
+
+    <Import Project="..\external\winui-app-kit\Xaml\WinUIAppKit.Xaml.projitems" Label="Shared" />
+
+  Do not edit these files in an app; change them in the kit and take them with a pin bump.
+-->
+<Project>
+  <PropertyGroup>
+    <HasSharedItems>true</HasSharedItems>
+    <SharedGUID>8c2f3e1a-7b44-4f0e-9d61-3a5c0e7b2d94</SharedGUID>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Merge into App.xaml as ms-appx:///WinUIAppKit/Styles.xaml -->
+    <Page Include="$(MSBuildThisFileDirectory)Styles.xaml">
+      <Link>WinUIAppKit\Styles.xaml</Link>
+    </Page>
+
+    <!-- The settings window shell (UI-1, UI-2), hosted by the app's own SettingsWindow. -->
+    <Page Include="$(MSBuildThisFileDirectory)SettingsShell.xaml">
+      <Link>WinUIAppKit\SettingsShell.xaml</Link>
+    </Page>
+    <Compile Include="$(MSBuildThisFileDirectory)SettingsShell.xaml.cs">
+      <DependentUpon>SettingsShell.xaml</DependentUpon>
+      <Link>WinUIAppKit\SettingsShell.xaml.cs</Link>
+    </Compile>
+
+    <!-- The About page (UI-5, BRAND-8); navigate to it with an AboutInfo. -->
+    <Page Include="$(MSBuildThisFileDirectory)AboutPage.xaml">
+      <Link>WinUIAppKit\AboutPage.xaml</Link>
+    </Page>
+    <Compile Include="$(MSBuildThisFileDirectory)AboutPage.xaml.cs">
+      <DependentUpon>AboutPage.xaml</DependentUpon>
+      <Link>WinUIAppKit\AboutPage.xaml.cs</Link>
+    </Compile>
+  </ItemGroup>
+</Project>

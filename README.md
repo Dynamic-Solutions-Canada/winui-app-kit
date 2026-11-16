@@ -16,7 +16,8 @@ Shared plumbing for small WinUI 3 desktop apps that live in the system tray: the
 | Settings | `ProtectedStore`, `IDataProtector`, `AtomicFile` | Credentials kept outside `settings.json`, encrypted to the Windows user; atomic file replacement |
 | Startup | `StartupRegistration`, `StartupStatus` | Start with Windows for packaged (startup task) and unpackaged (Run key) builds; reports when the user (in Windows Settings) or a policy decides instead of the app |
 | Theming | `AppTheme` | System / light / dark choice applied to every open window |
-| Localization | `SupportedLanguages`, `UiText`, `Localize`, `LocalizedMessage` | Interface text from per-language JSON catalogs embedded in the app, chosen from the user's override or Windows' languages; XAML attached properties that relabel open windows live; messages stored as key plus values so they follow a language change |
+| Localization | `SupportedLanguages`, `UiText`, `Localize`, `LocalizedMessage` | Interface text from per-language JSON catalogs embedded in the app, chosen from the user's override or Windows' languages; XAML attached properties that relabel open windows live; messages stored as key plus values so they follow a language change; the kit's own translated shared labels (`kit.*`) |
+| Shared XAML | `Styles.xaml`, `SettingsShell`, `AboutPage`, `AboutInfo`, `WindowChrome.SetUpSettingsWindow` | The family's page and card styles, the settings window shell with its fixed footer, and the About page with the standard cards; compiled by the app (see "Shared XAML") |
 | App | `AppBootstrap`, `HostWindow` | Crash logging, then settings, then the hidden host window, in that order; the host is a 1x1 off-screen tool window that answers a second launch and runs the app's exit steps before `Environment.Exit` |
 | App | `AppEnvironment`, `SingleInstance` | Packaged or not, version, data folders, one running copy |
 | Updates | `UpdateService`, `UpdateCheckResult`, `GitHubReleases` | The About page's "Check for updates": the Store's updates page when packaged, the app's GitHub Releases when not; never in the background |
@@ -97,6 +98,99 @@ What each file sets:
 | `.editorconfig` (repo root) | The family's code style |
 
 An app never hand-edits any of these, or keeps its own copy of one: the build files and `NLog.config` are used straight from the submodule, and `.editorconfig` and the `.gitignore` block are copied unchanged. A change goes into the kit and reaches every app with the next pin bump. Two switches exist for an app that cannot take a default yet, each set in its `Directory.Build.props` with a comment saying why: `WinUIAppKitWarningsAsErrors` (`false` until the app builds warning-free) and `WinUIAppKitIncludeNLogConfig` (`false` for an executable that must not ship the log config).
+
+## Shared XAML
+
+The styles, the settings window shell and the About page live in `Xaml/` and reach the app as a shared-items import, the same way the promo page does, so the app compiles them as part of its own project and needs no extra packaging work (KIT-5). Add to the app's csproj:
+
+```xml
+<Import Project="..\external\winui-app-kit\Xaml\WinUIAppKit.Xaml.projitems" Label="Shared" />
+```
+
+### Styles
+
+Merge the styles once in `App.xaml`, after `XamlControlsResources`, and delete the app's own copies:
+
+```xml
+<ResourceDictionary Source="ms-appx:///WinUIAppKit/Styles.xaml" />
+```
+
+Pages use these keys and never write padding, radius or header sizes inline (UI-3). The keys are public API: renaming or removing one is a major version.
+
+| Key | Target | Use |
+| --- | --- | --- |
+| `PageContentStyle` | `StackPanel` | The root of a page's content: padding `36,12,36,36`, spacing 8, at most 960 wide |
+| `PageTitleStyle` | `TextBlock` | The page title (`TitleTextBlockStyle`, 12 below) |
+| `SectionHeaderStyle` | `TextBlock` | A heading above a card (`BodyStrongTextBlockStyle`) |
+| `FirstSectionHeaderStyle` | `TextBlock` | The first heading, right under the title |
+| `CardBorderStyle` | `Border` | A card: corner radius 8, padding `16,14`, card fill and stroke |
+| `IconLabelStyle` | `StackPanel` | Button content: a glyph then a label, spacing 8 |
+| `ButtonGlyphStyle` | `FontIcon` | The glyph in `IconLabelStyle` content, size 14 |
+| `NavigationViewContentBackground`, `NavigationViewContentGridBorderBrush` | brushes | Transparent, so the settings window's Mica shows through |
+
+### Settings window
+
+The app's `SettingsWindow` hosts `SettingsShell` (UI-1, UI-2), adds its own pages and maps each tag to a page:
+
+```xml
+<Window x:Class="MyApp.SettingsWindow" xmlns:kit="using:WinUIAppKit.Pages" ...>
+    <kit:SettingsShell x:Name="Shell" />
+</Window>
+```
+
+```csharp
+Shell.Caption = "My App";
+Shell.IconPngPath = App.IconPngPath;
+Shell.MenuItems.Add(new NavigationViewItem { Content = UiText.Get("nav.home"), Tag = "home", Icon = new FontIcon { Glyph = "\uE80F" } });
+WindowChrome.SetUpSettingsWindow(this, Shell.TitleBar, App.IconPath, settings.SettingsWindowPlacement);
+Shell.PageSelected += tag => Shell.ContentFrame.Navigate(tag switch
+{
+    SettingsShell.SettingsTag => typeof(SettingsPage),
+    SettingsShell.AboutTag => typeof(AboutPage),          // with the app's AboutInfo as the parameter
+    SettingsShell.OtherAppsTag => typeof(PromotedAppsPage),
+    _ => typeof(HomePage),
+});
+Shell.Select("home");
+```
+
+The footer is always "Our other apps" then "About", and the built-in Settings item follows the app's language. `SetUpSettingsWindow` applies Mica, the custom title bar, the window icon, the saved placement and the app's theme. The app keeps one instance of the window and saves `WindowChrome.CapturePlacement` when it closes.
+
+### About page
+
+Navigate to `AboutPage` with an `AboutInfo` (UI-5, BRAND-8). The page lays out the identity, updates, links and diagnostics cards in that order, then any `ExtraCards`:
+
+```csharp
+var (source, support, license) = AboutInfo.GitHubLinks("<owner>", "<repo>");
+Shell.ContentFrame.Navigate(typeof(AboutPage), new AboutInfo
+{
+    ProductName = "My App",
+    DescriptionKey = "app.description",          // the app's own catalog key
+    IconPngPath = App.IconPngPath,
+    PrivacyPolicy = new Uri("<the product's registered privacy URL>"),
+    Updates = Updates,                            // the app's UpdateService; null hides the card
+    SourceCode = source, Support = support, License = license,
+});
+```
+
+The version is the 4-part package version, marked "(unpackaged)" when the app runs unpackaged. A link with no target is hidden. "Open logs folder" opens the folder named in `AppLogging.UseDataFolder`.
+
+### Shared labels
+
+The shell, the About page and the settings every app has use labels the kit owns and translates into the seven wording catalogs (D-072, LOC-7). They are `kit.*` keys that apps use through `UiText` and `Localize` like their own; an app never defines a `kit.` key, so a shared label reads the same in every app. A different wording is a change to the kit.
+
+| Key | English |
+| --- | --- |
+| `kit.settings.title` | Settings |
+| `kit.settings.app-theme` | App theme |
+| `kit.settings.use-system-setting` | Use system setting |
+| `kit.settings.light`, `kit.settings.dark` | Light, Dark |
+| `kit.settings.start-with-windows` | Start with Windows |
+| `kit.settings.language` | Language |
+| `kit.dialog.cancel` | Cancel |
+| `kit.nav.about`, `kit.nav.other-apps` | About, Our other apps |
+| `kit.about.*` | The About page's labels and update messages |
+
+The full list, with every translation, is in `WinUIAppKit/Localization/Catalogs/`. Translations new in the kit are machine translations, not yet reviewed.
 
 ## Starting a resident app
 
@@ -245,7 +339,7 @@ git add external/winui-app-kit
 
 - Keep it domain-neutral: no app names, settings fields or feature behaviour. If an app needs different behaviour, add a general option or event and keep the policy in the app.
 - A breaking change is a new major version, made together with the edits each consuming app needs (see "Versioning").
-- No XAML (yet): pages and windows stay in each app. Shipping XAML from a library needs extra MSIX packaging work in every app.
+- XAML lives only in `Xaml/` and reaches apps through the shared-items import, compiled by each app; the library project holds none, so no app needs library `.xbf` or PRI handling. App pages and windows stay in the app.
 
 ## License
 

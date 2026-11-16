@@ -26,6 +26,11 @@
     <FrameworkReference Include="Microsoft.WindowsDesktop.App" />
   </ItemGroup>
 
+  <!-- The kit's own wording catalogs for the shared labels (kit.* keys, LOC-7), read by UiText. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Localization\Catalogs\*.json" LogicalName="WinUIAppKit.Catalogs.%(Filename).json" />
+  </ItemGroup>
+
   <!-- Versions come from build/WinUIAppKit.Packages.props (central package management). -->
   <ItemGroup>
     <PackageReference Include="Microsoft.WindowsAppSDK" />

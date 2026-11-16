@@ -48,6 +48,27 @@ public static class WindowChrome
     }
 
     /// <summary>
+    /// Set up an app's settings window (UI-1): Mica, content extended into a custom title bar, the
+    /// window icon, the saved size and position, and the app's theme. Call from the window's
+    /// constructor after <c>InitializeComponent</c>; the window usually hosts the shared <c>SettingsShell</c>.
+    /// </summary>
+    /// <param name="window">The settings window.</param>
+    /// <param name="titleBar">The element that acts as the title bar (the shell's <c>TitleBar</c>).</param>
+    /// <param name="icoPath">Full path of the app's multi-size .ico, for the title bar and taskbar.</param>
+    /// <param name="saved">The saved placement from settings, or null for the default size, centred.</param>
+    /// <param name="defaultWidthDip">Width when nothing is saved, in DIPs.</param>
+    /// <param name="defaultHeightDip">Height when nothing is saved, in DIPs.</param>
+    public static void SetUpSettingsWindow(Window window, UIElement titleBar, string icoPath, WindowPlacement? saved, double defaultWidthDip = 980, double defaultHeightDip = 720)
+    {
+        window.SystemBackdrop = new Microsoft.UI.Xaml.Media.MicaBackdrop();
+        window.ExtendsContentIntoTitleBar = true;
+        window.SetTitleBar(titleBar);
+        WindowIcon.Apply(window, icoPath);
+        RestorePlacement(window, saved, defaultWidthDip, defaultHeightDip);
+        Theming.AppTheme.Track(window);
+    }
+
+    /// <summary>
     /// Size and position a window from saved placement, or centre it on the cursor's monitor at
     /// <paramref name="defaultWidthDip"/> × <paramref name="defaultHeightDip"/>. Saved placement that is
     /// no longer on any monitor (a display was removed) is ignored.

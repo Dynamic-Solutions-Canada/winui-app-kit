@@ -1,0 +1,47 @@
+<!--
+  The shared settings window shell (UI-1, UI-2): a 48 px title bar with the app icon and name, and a
+  left NavigationView (240 wide, back button hidden, built-in Settings on) whose footer is always
+  "Our other apps" then "About". The app's own SettingsWindow hosts it, adds its own menu items and
+  maps each selected tag to a page. Labels come from the kit's catalog (kit.*).
+-->
+<UserControl
+    x:Class="WinUIAppKit.Pages.SettingsShell"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:l10n="using:WinUIAppKit.Localization">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="48" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Custom title bar; the window passes it to WindowChrome.SetUpSettingsWindow. -->
+        <Grid x:Name="TitleBarArea" Grid.Row="0" VerticalAlignment="Top" Height="48">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Image x:Name="TitleBarIcon" Width="16" Height="16" Margin="16,0,8,0" VerticalAlignment="Center" />
+            <TextBlock x:Name="CaptionText" Grid.Column="1" VerticalAlignment="Center"
+                       Style="{StaticResource CaptionTextBlockStyle}" />
+        </Grid>
+
+        <NavigationView x:Name="Navigation" Grid.Row="1"
+                        PaneDisplayMode="Left"
+                        IsPaneToggleButtonVisible="True"
+                        OpenPaneLength="240"
+                        IsBackButtonVisible="Collapsed"
+                        IsSettingsVisible="True"
+                        SelectionChanged="Navigation_SelectionChanged">
+            <NavigationView.FooterMenuItems>
+                <NavigationViewItem l10n:Localize.Content="kit.nav.other-apps" Tag="kit.other-apps">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE719;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem l10n:Localize.Content="kit.nav.about" Tag="kit.about">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE946;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.FooterMenuItems>
+            <Frame x:Name="Frame" />
+        </NavigationView>
+    </Grid>
+</UserControl>

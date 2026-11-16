@@ -1,0 +1,58 @@
+<!--
+  The family's shared page and card styles (UI-3, D-019). Merge once in App.xaml:
+
+    <ResourceDictionary Source="ms-appx:///WinUIAppKit/Styles.xaml" />
+
+  Keys are part of the kit's public API: renaming or removing one is a breaking change (major version).
+-->
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Transparent NavigationView content so the settings window's Mica shows through (UI-1). -->
+    <SolidColorBrush x:Key="NavigationViewContentBackground" Color="Transparent" />
+    <SolidColorBrush x:Key="NavigationViewContentGridBorderBrush" Color="Transparent" />
+
+    <!-- A settings card: corner radius 8, padding 16,14. -->
+    <Style x:Key="CardBorderStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="16,14" />
+    </Style>
+
+    <!-- The root of every page's content: padding 36,12,36,36, at most 960 wide. -->
+    <Style x:Key="PageContentStyle" TargetType="StackPanel">
+        <Setter Property="Padding" Value="36,12,36,36" />
+        <Setter Property="Spacing" Value="8" />
+        <Setter Property="MaxWidth" Value="960" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+    </Style>
+
+    <!-- The page title. -->
+    <Style x:Key="PageTitleStyle" TargetType="TextBlock" BasedOn="{StaticResource TitleTextBlockStyle}">
+        <Setter Property="Margin" Value="0,0,0,12" />
+    </Style>
+
+    <!-- A heading above a card. -->
+    <Style x:Key="SectionHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource BodyStrongTextBlockStyle}">
+        <Setter Property="Margin" Value="2,16,0,2" />
+    </Style>
+
+    <!-- The first heading on a page, which sits right under the title. -->
+    <Style x:Key="FirstSectionHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource SectionHeaderStyle}">
+        <Setter Property="Margin" Value="2,0,0,2" />
+    </Style>
+
+    <!-- Button content: a small glyph followed by a label. -->
+    <Style x:Key="IconLabelStyle" TargetType="StackPanel">
+        <Setter Property="Orientation" Value="Horizontal" />
+        <Setter Property="Spacing" Value="8" />
+    </Style>
+
+    <!-- The glyph inside IconLabelStyle content. -->
+    <Style x:Key="ButtonGlyphStyle" TargetType="FontIcon">
+        <Setter Property="FontSize" Value="14" />
+    </Style>
+</ResourceDictionary>
