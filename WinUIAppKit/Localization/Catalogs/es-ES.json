@@ -33,5 +33,11 @@
   "kit.settings.startup-policy-off": "Desactivado por tu organización.",
   "kit.settings.startup-policy-on": "Activado por tu organización.",
   "kit.settings.reset-title": "Se restableció la configuración",
-  "kit.settings.reset-notice": "No se pudo leer tu configuración, así que se usan los valores predeterminados. El archivo anterior se guardó como {{file}}."
+  "kit.settings.reset-notice": "No se pudo leer tu configuración, así que se usan los valores predeterminados. El archivo anterior se guardó como {{file}}.",
+  "kit.settings.reset-header": "Restablecer la configuración",
+  "kit.settings.reset-desc": "Devuelve la configuración a sus valores predeterminados. La configuración actual se guarda como copia de seguridad junto al archivo de configuración.",
+  "kit.settings.reset-button": "Restablecer la configuración",
+  "kit.settings.reset-question": "¿Restablecer la configuración?",
+  "kit.settings.reset-body": "El tema, el idioma y el resto de la configuración vuelven a sus valores predeterminados. «Iniciar con Windows» no cambia.",
+  "kit.settings.reset-confirm": "Restablecer"
 }

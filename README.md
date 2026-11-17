@@ -19,7 +19,7 @@ Shared plumbing for small WinUI 3 desktop apps that live in the system tray: the
 | Theming | `AppTheme` | System / light / dark choice applied to every open window |
 | Localization | `SupportedLanguages`, `UiText`, `Localize`, `LocalizedMessage` | Interface text from per-language JSON catalogs embedded in the app, chosen from the user's override or Windows' languages; XAML attached properties that relabel open windows live; messages stored as key plus values so they follow a language change; the kit's own translated shared labels (`kit.*`) |
 | Shared XAML | `Styles.xaml`, `SettingsShell`, `AboutPage`, `AboutInfo`, `WindowChrome.SetUpSettingsWindow` | The family's page and card styles, the settings window shell with its fixed footer, and the About page with the standard cards; compiled by the app (see "Shared XAML") |
-| Shared XAML | `StartupSetting`, `ThemeSetting`, `LanguageSetting` | The Settings page rows every app has: Start with Windows, App theme and Language |
+| Shared XAML | `StartupSetting`, `ThemeSetting`, `LanguageSetting`, `ResetSetting` | The Settings page rows every app has: Start with Windows, App theme, Language and Reset settings |
 | App | `AppBootstrap`, `HostWindow` | Crash logging, then settings, then the hidden host window, in that order; the host is a 1x1 off-screen tool window that answers a second launch and runs the app's exit steps before `Environment.Exit` |
 | App | `AppEnvironment`, `SingleInstance` | Packaged or not, version, data folders, one running copy |
 | Updates | `UpdateService`, `UpdateCheckResult`, `GitHubReleases` | The About page's "Check for updates": the Store's updates page when packaged, the app's GitHub Releases when not; never in the background |
@@ -191,7 +191,7 @@ Set `ThirdPartyNotices` to the GitHub link of the file the [third-party notices]
 
 ### Settings page rows
 
-The rows every app's Settings page has (UI-4) are three controls in `WinUIAppKit.Controls`. Each applies a change at once and raises an event so the app saves the choice in its own settings; every edit saves immediately, with no Save button.
+The rows every app's Settings page has (UI-4) are controls in `WinUIAppKit.Controls`. The first three each apply a change at once and raise an event so the app saves the choice in its own settings; every edit saves immediately, with no Save button.
 
 ```xml
 <Page xmlns:kitc="using:WinUIAppKit.Controls" ...>
@@ -220,6 +220,23 @@ ThemeRow.ChoiceChanged += choice => { Settings.AppTheme = choice; Save(); };
 
 An app that isn't localized leaves out `LanguageSetting`, and an app that isn't resident leaves out `StartupSetting`.
 
+The fourth row, `ResetSetting` (CONF-4), puts the app's settings back to their defaults. It goes in its own card below the others. It asks first with `ConfirmDialog` (Cancel is the default), then runs the app's reset, and knows nothing about what the app keeps:
+
+```xml
+<Border Style="{StaticResource CardBorderStyle}">
+    <kitc:ResetSetting x:Name="ResetRow" />
+</Border>
+```
+
+```csharp
+ResetRow.Window = SettingsWindow.GetCurrent();
+ResetRow.ResetAsync = () => { SettingsManager.Reset(); return Task.CompletedTask; };  // store Reset, carry over what stays, apply theme and language, save
+ResetRow.KeptNote = () => UiText.Get("settings.reset-kept");                          // optional: what the reset keeps
+ResetRow.ResetCompleted += () => Frame.Navigate(typeof(SettingsPage));              // show the defaults
+```
+
+The app's `ResetAsync` does the whole reset: `JsonSettingsStore.Reset`, which keeps the old file beside the new one, then anything it carries over, then `AppTheme.Set` and `UiText.SetOverride` with the reset values, then the save. The kit's wording says the current settings are kept as a backup next to the settings file and that Start with Windows stays as it is, which holds when the reset goes through `JsonSettingsStore.Reset`. `KeptNote` adds the app's own sentence below the kit's in the question, read when it opens so it is in the current language. A failing `ResetAsync` is logged, and `ResetCompleted` is not raised.
+
 ### Shared labels
 
 The shell, the About page and the settings every app has use labels the kit owns and translates into the seven wording catalogs (D-072, LOC-7). They are `kit.*` keys that apps use through `UiText` and `Localize` like their own; an app never defines a `kit.` key, so a shared label reads the same in every app. A different wording is a change to the kit.
@@ -233,6 +250,8 @@ The shell, the About page and the settings every app has use labels the kit owns
 | `kit.settings.start-with-windows` | Start with Windows |
 | `kit.settings.on`, `kit.settings.off` | On, Off |
 | `kit.settings.startup-user-off`, `kit.settings.startup-policy-off`, `kit.settings.startup-policy-on` | Why the startup switch is disabled |
+| `kit.settings.reset-header`, `kit.settings.reset-desc`, `kit.settings.reset-button` | Reset settings, its description, Reset settings |
+| `kit.settings.reset-question`, `kit.settings.reset-body`, `kit.settings.reset-confirm` | The reset question, what it resets, Reset |
 | `kit.settings.language` | Language |
 | `kit.dialog.cancel` | Cancel |
 | `kit.settings.reset-title`, `kit.settings.reset-notice` | The "settings were reset" notice |

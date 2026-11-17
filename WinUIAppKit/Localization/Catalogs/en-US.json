@@ -33,5 +33,11 @@
   "kit.settings.startup-policy-off": "Turned off by your organization.",
   "kit.settings.startup-policy-on": "Turned on by your organization.",
   "kit.settings.reset-title": "Settings were reset",
-  "kit.settings.reset-notice": "Your settings couldn’t be read, so the defaults are in use. The old file was kept as {{file}}."
+  "kit.settings.reset-notice": "Your settings couldn’t be read, so the defaults are in use. The old file was kept as {{file}}.",
+  "kit.settings.reset-header": "Reset settings",
+  "kit.settings.reset-desc": "Put your settings back to their defaults. The current settings are kept as a backup file next to the settings file.",
+  "kit.settings.reset-button": "Reset settings",
+  "kit.settings.reset-question": "Reset settings?",
+  "kit.settings.reset-body": "The theme, language and other settings go back to their defaults. Start with Windows stays as it is.",
+  "kit.settings.reset-confirm": "Reset"
 }

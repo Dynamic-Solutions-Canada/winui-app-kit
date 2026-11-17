@@ -33,5 +33,11 @@
   "kit.settings.startup-policy-off": "組織によってオフにされています。",
   "kit.settings.startup-policy-on": "組織によってオンにされています。",
   "kit.settings.reset-title": "設定がリセットされました",
-  "kit.settings.reset-notice": "設定を読み取れなかったため、既定値を使用しています。以前のファイルは {{file}} として保存されています。"
+  "kit.settings.reset-notice": "設定を読み取れなかったため、既定値を使用しています。以前のファイルは {{file}} として保存されています。",
+  "kit.settings.reset-header": "設定のリセット",
+  "kit.settings.reset-desc": "設定を既定値に戻します。現在の設定は、設定ファイルと同じ場所にバックアップ ファイルとして保存されます。",
+  "kit.settings.reset-button": "設定をリセット",
+  "kit.settings.reset-question": "設定をリセットしますか?",
+  "kit.settings.reset-body": "テーマ、言語、その他の設定が既定値に戻ります。「Windows の起動時に開始」は変わりません。",
+  "kit.settings.reset-confirm": "リセット"
 }

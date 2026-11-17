@@ -33,5 +33,11 @@
   "kit.settings.startup-policy-off": "Désactivé par votre organisation.",
   "kit.settings.startup-policy-on": "Activé par votre organisation.",
   "kit.settings.reset-title": "Les paramètres ont été réinitialisés",
-  "kit.settings.reset-notice": "Impossible de lire vos paramètres, les valeurs par défaut sont donc utilisées. L’ancien fichier a été conservé sous le nom {{file}}."
+  "kit.settings.reset-notice": "Impossible de lire vos paramètres, les valeurs par défaut sont donc utilisées. L’ancien fichier a été conservé sous le nom {{file}}.",
+  "kit.settings.reset-header": "Réinitialiser les paramètres",
+  "kit.settings.reset-desc": "Rétablit les paramètres par défaut. Les paramètres actuels sont conservés dans un fichier de sauvegarde, à côté du fichier de paramètres.",
+  "kit.settings.reset-button": "Réinitialiser les paramètres",
+  "kit.settings.reset-question": "Réinitialiser les paramètres ?",
+  "kit.settings.reset-body": "Le thème, la langue et les autres paramètres reviennent à leurs valeurs par défaut. « Démarrer avec Windows » ne change pas.",
+  "kit.settings.reset-confirm": "Réinitialiser"
 }

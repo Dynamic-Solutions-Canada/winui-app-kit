@@ -33,5 +33,11 @@
   "kit.settings.startup-policy-off": "已被你的组织关闭。",
   "kit.settings.startup-policy-on": "已被你的组织打开。",
   "kit.settings.reset-title": "设置已重置",
-  "kit.settings.reset-notice": "无法读取你的设置，因此正在使用默认值。旧文件已保留为 {{file}}。"
+  "kit.settings.reset-notice": "无法读取你的设置，因此正在使用默认值。旧文件已保留为 {{file}}。",
+  "kit.settings.reset-header": "重置设置",
+  "kit.settings.reset-desc": "将设置恢复为默认值。当前设置会作为备份文件保存在设置文件旁边。",
+  "kit.settings.reset-button": "重置设置",
+  "kit.settings.reset-question": "要重置设置吗?",
+  "kit.settings.reset-body": "主题、语言和其他设置将恢复为默认值。“随 Windows 启动”保持不变。",
+  "kit.settings.reset-confirm": "重置"
 }

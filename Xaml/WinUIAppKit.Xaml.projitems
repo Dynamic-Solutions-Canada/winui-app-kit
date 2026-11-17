@@ -48,6 +48,13 @@
     </Compile>
 
     <!-- The "Language" row (UI-4, LOC-4). -->
+    <Page Include="$(MSBuildThisFileDirectory)Settings\ResetSetting.xaml">
+      <Link>WinUIAppKit\ResetSetting.xaml</Link>
+    </Page>
+    <Compile Include="$(MSBuildThisFileDirectory)Settings\ResetSetting.xaml.cs">
+      <DependentUpon>ResetSetting.xaml</DependentUpon>
+      <Link>WinUIAppKit\ResetSetting.xaml.cs</Link>
+    </Compile>
     <Page Include="$(MSBuildThisFileDirectory)Settings\LanguageSetting.xaml">
       <Link>WinUIAppKit\LanguageSetting.xaml</Link>
     </Page>
