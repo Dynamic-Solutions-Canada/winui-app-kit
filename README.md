@@ -21,7 +21,7 @@ Shared plumbing for small WinUI 3 desktop apps that live in the system tray: the
 | Shared XAML | `Styles.xaml`, `SettingsShell`, `AboutPage`, `AboutInfo`, `WindowChrome.SetUpSettingsWindow` | The family's page and card styles, the settings window shell with its fixed footer, and the About page with the standard cards; compiled by the app (see "Shared XAML") |
 | Shared XAML | `StartupSetting`, `ThemeSetting`, `LanguageSetting`, `ResetSetting` | The Settings page rows every app has: Start with Windows, App theme, Language and Reset settings |
 | App | `AppBootstrap`, `HostWindow` | Crash logging, then settings, then the hidden host window, in that order; the host is a 1x1 off-screen tool window that answers a second launch and runs the app's exit steps before `Environment.Exit` |
-| App | `AppEnvironment`, `SingleInstance` | Packaged or not, version, data folders, one running copy |
+| App | `AppEnvironment`, `SingleInstance` | Packaged or not, version, data folders, one running copy (bringing the first copy forward, with or without a host window) |
 | Updates | `UpdateService`, `UpdateCheckResult`, `GitHubReleases` | The About page's "Check for updates": the Store's updates page when packaged, the app's GitHub Releases when not; never in the background |
 | Logging | `AppLogging` | Names the app's data folder for the shared NLog config (one log file per launch beside `settings.json`, keeping the current file and three older ones), and opens that folder for "Open logs folder" |
 
@@ -138,7 +138,7 @@ Pages use these keys and never write padding, radius or header sizes inline (UI-
 | `SectionHeaderStyle` | `TextBlock` | A heading above a card (`BodyStrongTextBlockStyle`) |
 | `FirstSectionHeaderStyle` | `TextBlock` | The first heading, right under the title |
 | `CardBorderStyle` | `Border` | A card: corner radius 8, padding `16,14`, card fill and stroke |
-| `IconLabelStyle` | `StackPanel` | Button content: a glyph then a label, spacing 8 |
+| `IconLabelStyle` | `StackPanel` | Button content: a glyph then a label, spacing 8. Screen readers get no name from it, so set `l10n:Localize.Name` on the button to the label's key (UI-14) |
 | `ButtonGlyphStyle` | `FontIcon` | The glyph in `IconLabelStyle` content, size 14 |
 | `NavigationViewContentBackground`, `NavigationViewContentGridBorderBrush` | brushes | Transparent, so the settings window's Mica shows through |
 
@@ -180,13 +180,15 @@ var (source, support, license) = AboutInfo.GitHubLinks("<owner>", "<repo>");
 Shell.ContentFrame.Navigate(typeof(AboutPage), new AboutInfo
 {
     ProductName = "My App",
-    DescriptionKey = "app.description",          // the app's own catalog key
+    DescriptionKey = "app.description",          // the app's own catalog key, or Description = () => ... for .resw text
     IconPngPath = App.IconPngPath,
     PrivacyPolicy = new Uri("<the product's registered privacy URL>"),
     Updates = Updates,                            // the app's UpdateService; null hides the card
     SourceCode = source, Support = support, License = license,
 });
 ```
+
+An app whose text is in `.resw` files (LOC-6) sets `Description = () => resources.GetString("AppDescription")` instead of `DescriptionKey`; exactly one of the two is set. Every other app-supplied piece of the kit's pages is already built by the app (menu items, `ExtraCards`) or a `Func<string>` (`ResetSetting.KeptNote`), so a `.resw` app can use the whole kit.
 
 The version is the 4-part package version, marked "(unpackaged)" when the app runs unpackaged. A link with no target is hidden. "Open logs folder" opens the folder named in `AppLogging.UseDataFolder`.
 
@@ -422,6 +424,7 @@ _host.AddExitStep("remove the tray icon", _tray.Dispose);
 
 - **Crash logging:** `AppBootstrap.Launch` installs the two unhandled-exception handlers (log, then flush) before anything else runs. WinUI exceptions are marked handled so the app keeps running; call `InstallCrashLogging` yourself to choose otherwise.
 - **Host window:** `HostWindow` gives the host the title `SingleInstance.SignalRunningInstance` looks for. Pass the same title and message name to both.
+- **Apps with no host window:** an app whose only window is visible (not resident) calls `SingleInstance.RegisterWindow(WindowChrome.Hwnd(window))` once its window exists. A second launch calls `SingleInstance.BringRunningInstanceForward(mutexName)` after `TryClaim` returns false, then exits: it restores the first copy's window if minimized and brings it to the front, using the foreground right the user's launch carries. No window title is needed; the window is recorded in session-local shared memory under the mutex name.
 - **Exit:** `Exit` runs every exit step in the order added (a failing step is logged and the rest still run), flushes the log, then ends the process. Put all teardown in exit steps (closing connections, unregistering notifications, removing the tray icon), never after `Exit`.
 - **Confirmations:** `ConfirmDialog.ConfirmAsync(window, title, body, confirmText)`. Name the action on the confirm button; the question and that label come from the app's own catalogs, and Cancel is the kit's shared label unless the app passes `cancelText`.
 - **Tray icon:** `TrayIconRasterizer.Render(TrayIcon.IconPixelSize, (g, side) => ...)` draws the app's artwork on a canvas `side` pixels square, using `Ink` and `Surface` for taskbar-aware colours. Re-render on `TrayIcon.RenderNeeded` and when the taskbar colour changes.
@@ -564,7 +567,9 @@ Apps link to this section rather than repeating it in their own docs.
 - **Start with Windows never overrides the user or a policy.** When `StartupStatus` says the user (in Windows Settings) or a policy decided, the app explains that instead of flipping its switch back. Packaged builds use the manifest startup task; unpackaged builds use the HKCU Run key with a silent-launch argument.
 - **Portable copies move.** Each download of a portable build unzips to its own folder, leaving the Run entry aimed at the old copy. Call `StartupRegistration.RepointRunEntry()` once at startup in builds the app treats as portable. It rewrites only an entry that already exists, under the same name, so it never turns startup on and never undoes a choice the user made in Task Manager or Windows Settings. It does nothing when packaged.
 - **Interface text:** use `UiText.Get` and `UiText.Format` (placeholders as `{{name}}`) in code, and the `Localize` attached properties (`xmlns:l10n="using:WinUIAppKit.Localization"`, then `l10n:Localize.Text`, `Content`, `Header`, `ToolTip` and the others) in XAML. Store a key or a `LocalizedMessage` on models and services, not finished text, so a language change relabels it. `Localize` relabels XAML live; anything an app builds in code must also refresh on `UiText.Changed`.
-- **Do not set `ApplicationLanguages.PrimaryLanguageOverride`.** When packaged, `UiText` resolves "Match Windows" from the app's language list, which an override replaces. Pass the user's choice to `UiText.Configure` and `UiText.SetOverride` instead.
+- **Buttons with an icon and a label (`IconLabelStyle`) need `l10n:Localize.Name`** set to the label's key. Their content is a panel, so the button's accessible name is empty otherwise (UI-14). The kit's own buttons do this.
+- **`Localize` targets:** headers and placeholders work on `TextBox`, `PasswordBox`, `NumberBox`, `AutoSuggestBox` and `ComboBox` (headers also on `ToggleSwitch`). A `Localize` property on a control without it is logged as a warning, once per control type, instead of doing nothing silently.
+- **Do not set `ApplicationLanguages.PrimaryLanguageOverride`.** When packaged, `UiText` resolves "Match Windows" from the app's language list, which an override replaces. Pass the user's choice to `UiText.Configure` and `UiText.SetOverride` instead. A consequence: WinUI's own built-in control strings (a text box's context menu, "Select All" and the like) follow Windows' language, not the language chosen in the app.
 
 ## Versioning
 
