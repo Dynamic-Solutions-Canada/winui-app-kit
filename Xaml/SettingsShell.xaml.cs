@@ -46,10 +46,18 @@ public sealed partial class SettingsShell : UserControl
             }
         };
         Navigation.Unloaded += (_, _) => UiText.Changed -= LabelSettingsItem;
+        Navigation.ItemInvoked += Navigation_ItemInvoked;
     }
 
     /// <summary>Raised when the user selects an item: the item's <c>Tag</c>, or <see cref="SettingsTag"/> for Settings.</summary>
     public event Action<string>? PageSelected;
+
+    /// <summary>
+    /// Raised with an action item's <c>Tag</c> when the user invokes it. An action item is a menu item the
+    /// app adds with <c>SelectsOnInvoked="False"</c> ("Add ..."): it runs something instead of opening a
+    /// page, so it is never selected and never raises <see cref="PageSelected"/>.
+    /// </summary>
+    public event Action<string>? ActionInvoked;
 
     /// <summary>The element the window uses as its title bar.</summary>
     public UIElement TitleBar => TitleBarArea;
@@ -85,7 +93,7 @@ public sealed partial class SettingsShell : UserControl
 
     /// <summary>
     /// Select the item with <paramref name="tag"/> (or Settings for <see cref="SettingsTag"/>), which
-    /// raises <see cref="PageSelected"/>. Returns false when no item has that tag. It can be called before
+    /// raises <see cref="PageSelected"/>. Returns false when no item has that tag, or the item is an action item. It can be called before
     /// the window has loaded (a tray "Settings" entry, or the settings reset notice, opening the window
     /// straight on a page): the selection is then applied when the shell loads, so callers need no
     /// ordering of their own.
@@ -109,8 +117,9 @@ public sealed partial class SettingsShell : UserControl
         var item = Navigation.MenuItems.Concat(Navigation.FooterMenuItems)
             .OfType<NavigationViewItem>()
             .FirstOrDefault(candidate => candidate.Tag as string == tag);
-        if (item is null)
+        if (item is null || !item.SelectsOnInvoked)
         {
+            // No such item, or an action item, which is invoked rather than selected.
             return false;
         }
 
@@ -135,6 +144,15 @@ public sealed partial class SettingsShell : UserControl
         if (SelectedTag is { } tag)
         {
             PageSelected?.Invoke(tag);
+        }
+    }
+
+    /// <summary>Report an action item (one that doesn't select) to the app; pages are reported by selection.</summary>
+    private void Navigation_ItemInvoked(NavigationView sender, NavigationViewItemInvokedEventArgs args)
+    {
+        if (args.InvokedItemContainer is NavigationViewItem { SelectsOnInvoked: false, Tag: string tag })
+        {
+            ActionInvoked?.Invoke(tag);
         }
     }
 
