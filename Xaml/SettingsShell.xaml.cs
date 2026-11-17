@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media.Imaging;
 using WinUIAppKit.Localization;
@@ -23,19 +24,28 @@ public sealed partial class SettingsShell : UserControl
     /// <summary>The tag of the "About" footer item; navigate to <see cref="AboutPage"/> with the app's <see cref="AboutInfo"/>.</summary>
     public const string AboutTag = "kit.about";
 
+    /// <summary>A selection asked for before the navigation view had its items, applied once it loads.</summary>
+    private string? _pendingTag;
+
     /// <summary>Create the shell. Set <see cref="Caption"/> and <see cref="IconPngPath"/>, then add menu items.</summary>
     public SettingsShell()
     {
         InitializeComponent();
 
-        // The built-in Settings item is labelled by WinUI in Windows' language; relabel it so it follows
-        // the app's language choice like every other item.
-        Loaded += (_, _) =>
+        // The built-in Settings item only exists once the navigation view's template has loaded. Relabel
+        // it then so it follows the app's language like every other item, and apply any selection that
+        // was asked for earlier.
+        Navigation.Loaded += (_, _) =>
         {
             UiText.Changed += LabelSettingsItem;
             LabelSettingsItem();
+            if (_pendingTag is { } tag)
+            {
+                _pendingTag = null;
+                Select(tag);
+            }
         };
-        Unloaded += (_, _) => UiText.Changed -= LabelSettingsItem;
+        Navigation.Unloaded += (_, _) => UiText.Changed -= LabelSettingsItem;
     }
 
     /// <summary>Raised when the user selects an item: the item's <c>Tag</c>, or <see cref="SettingsTag"/> for Settings.</summary>
@@ -75,13 +85,23 @@ public sealed partial class SettingsShell : UserControl
 
     /// <summary>
     /// Select the item with <paramref name="tag"/> (or Settings for <see cref="SettingsTag"/>), which
-    /// raises <see cref="PageSelected"/>. Returns false when no item has that tag.
+    /// raises <see cref="PageSelected"/>. Returns false when no item has that tag. It can be called before
+    /// the window has loaded (a tray "Settings" entry, or the settings reset notice, opening the window
+    /// straight on a page): the selection is then applied when the shell loads, so callers need no
+    /// ordering of their own.
     /// </summary>
     /// <param name="tag">An item's tag.</param>
     public bool Select(string tag)
     {
         if (tag == SettingsTag)
         {
+            if (Navigation.SettingsItem is null)
+            {
+                // Not loaded yet: the built-in item doesn't exist, so select it on load.
+                _pendingTag = tag;
+                return Navigation.IsSettingsVisible;
+            }
+
             Navigation.SelectedItem = Navigation.SettingsItem;
             return true;
         }
@@ -94,13 +114,19 @@ public sealed partial class SettingsShell : UserControl
             return false;
         }
 
+        if (!Navigation.IsLoaded)
+        {
+            _pendingTag = tag;
+            return true;
+        }
+
         Navigation.SelectedItem = item;
         return true;
     }
 
     /// <summary>The tag of the selected item, <see cref="SettingsTag"/> for Settings, or null.</summary>
     public string? SelectedTag =>
-        Navigation.SelectedItem == Navigation.SettingsItem
+        Navigation.SettingsItem is not null && Navigation.SelectedItem == Navigation.SettingsItem
             ? SettingsTag
             : (Navigation.SelectedItem as NavigationViewItem)?.Tag as string;
 
@@ -112,11 +138,18 @@ public sealed partial class SettingsShell : UserControl
         }
     }
 
+    /// <summary>
+    /// The built-in Settings item's label, tooltip and screen-reader name, all from the kit's label: WinUI
+    /// sets them in Windows' language, which differs when the user chose another language (UI-14).
+    /// </summary>
     private void LabelSettingsItem()
     {
         if (Navigation.SettingsItem is NavigationViewItem settings)
         {
-            settings.Content = UiText.Get("kit.settings.title");
+            string label = UiText.Get("kit.settings.title");
+            settings.Content = label;
+            ToolTipService.SetToolTip(settings, label);
+            AutomationProperties.SetName(settings, label);
         }
     }
 }

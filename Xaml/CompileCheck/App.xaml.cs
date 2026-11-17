@@ -57,6 +57,8 @@ public partial class App : Application
         // The reset notice, as a settings page shows it after an unreadable settings file.
         rows.Children.Insert(0, Settings.SettingsResetNotice.Create("C:\\data\\settings.json.bad"));
 
+        // Selecting before the window has loaded, as a tray "Settings" entry does: the shell applies it on load.
+        shell.Select(SettingsShell.SettingsTag);
         shell.Select(SettingsShell.AboutTag);
         window.Activate();
     }
