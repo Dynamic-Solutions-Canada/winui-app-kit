@@ -18,6 +18,6 @@
       get it from that framework instead (a direct reference there is error NU1510). Held on the .NET 10
       line with the rest of the family (11.x belongs to the next major).
     -->
-    <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="10.0.15" />
+    <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="11.0.0" />
   </ItemGroup>
 </Project>
