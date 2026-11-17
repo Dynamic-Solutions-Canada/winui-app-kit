@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Packaging fixture for the kit's own checks: it lets the shared packaging script and the Store publish
+  workflow's dry run package Xaml/CompileCheck. Never published, signed or installed. The identity is a
+  placeholder that belongs to no Store product.
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap rescap">
+
+  <Identity
+    Name="WinUIAppKit.CompileCheck"
+    Publisher="CN=WinUIAppKit.CompileCheck"
+    Version="VERSION_PLACEHOLDER"
+    ProcessorArchitecture="ARCH_PLACEHOLDER" />
+
+  <Properties>
+    <DisplayName>WinUI App Kit compile check</DisplayName>
+    <PublisherDisplayName>WinUI App Kit</PublisherDisplayName>
+    <Logo>Images\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19045.0" MaxVersionTested="10.0.26100.0" />
+    <PackageDependency Name="Microsoft.WindowsAppRuntime.1.8" MinVersion="8000.770.947.0" Publisher="CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-US" />
+  </Resources>
+
+  <Applications>
+    <Application Id="App"
+      Executable="WinUIAppKit.XamlCompileCheck.exe"
+      EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="WinUI App Kit compile check"
+        BackgroundColor="transparent"
+        Square150x150Logo="Images\Square150x150Logo.png"
+        Square44x44Logo="Images\Square44x44Logo.png"
+        Description="Packaging fixture for WinUI App Kit's own checks." />
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

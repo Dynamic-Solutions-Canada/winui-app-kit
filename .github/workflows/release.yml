@@ -78,6 +78,12 @@ jobs:
             echo "::error::Tag $TAG does not match <Version>$declared</Version> in Directory.Build.props"
             exit 1
           fi
+          # The reusable Store workflow names its kit version; the bump updates it with <Version>.
+          workflow_version="$(sed -n "s/^  KIT_VERSION: '\(.*\)'$/\1/p" .github/workflows/store-publish.yml)"
+          if [[ "$workflow_version" != "$version" ]]; then
+            echo "::error::KIT_VERSION in .github/workflows/store-publish.yml is '$workflow_version', not $version"
+            exit 1
+          fi
           notes="release-notes/$version.md"
           if [[ ! -s "$notes" ]]; then
             echo "::error::Missing or empty $notes; release notes are written and committed before tagging"

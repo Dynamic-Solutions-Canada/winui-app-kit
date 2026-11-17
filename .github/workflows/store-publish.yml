@@ -1,0 +1,415 @@
+name: Publish to Microsoft Store
+
+# Reusable Store publishing for apps on WinUI App Kit (CI-10, REL-7). Called by an app's own
+# store-publish.yml; see "Publishing to the Microsoft Store" in the kit README for the caller.
+#
+# A v* tag run builds both architectures, uploads them to Partner Center, attaches the release
+# notes, and stops: the submission stays a draft (REL-7). Publishing is a second, manual step: the
+# caller's workflow runs on the same tag with submit_draft set to the draft ID from the tag run's
+# summary. Manual full runs also default to draft-only review. Never expose MSIX files as artifacts:
+# paid apps' packages must not be downloadable.
+#
+# dry_run builds, bundles and checks everything, then stops before installing the Store CLI and
+# before any token request or Store API call. No secret is needed for it.
+#
+# The helpers come from the caller's kit submodule (kit_path). KIT_VERSION below must equal that
+# submodule's <Version>, so a `uses:` tag and a submodule pin that drift apart fail at the first step.
+# The kit's release bump updates KIT_VERSION together with <Version>.
+
+on:
+  workflow_call:
+    inputs:
+      store_product_id:
+        description: 'Partner Center Store ID, such as 9ABCDEF12345'
+        type: string
+        required: true
+      price_tier:
+        description: 'Partner Center price tier such as Tier1012; empty leaves pricing alone (free apps)'
+        type: string
+        default: ''
+      windows_build_json:
+        description: "The app's windows-build.json, which names package_script, package_output and package_name"
+        type: string
+        default: 'windows-build.json'
+      notes_dir:
+        description: 'Folder holding release notes as <version>.md'
+        type: string
+        default: 'release-notes'
+      pre_build:
+        description: "PowerShell run before packaging, for the app's own steps (tests, image generation)"
+        type: string
+        default: ''
+      kit_path:
+        description: "Path of the WinUI App Kit submodule in the caller's repo"
+        type: string
+        default: 'external/winui-app-kit'
+      dry_run:
+        description: 'Build, bundle and check, then stop before any Store call'
+        type: boolean
+        default: false
+      no_commit:
+        description: 'Stage a draft for review in Partner Center without submitting'
+        type: boolean
+        default: true
+      repair_draft:
+        description: 'Existing draft ID to repair with both architectures; requires no_commit'
+        type: string
+        default: ''
+      replace_canceled_draft:
+        description: 'Exact canceled tier submission ID to replace with a corrected release'
+        type: string
+        default: ''
+      submit_draft:
+        description: 'Draft ID from the tag run to submit for certification; run on that release tag with no_commit unchecked'
+        type: string
+        default: ''
+      replace_failed_draft:
+        description: 'Exact CommitFailed submission ID to replace after correcting its package'
+        type: string
+        default: ''
+      failed_upload:
+        description: 'Exact upload filename in the failed submission being replaced'
+        type: string
+        default: ''
+    secrets:
+      AZURE_AD_TENANT_ID:
+        required: false
+      AZURE_AD_APPLICATION_CLIENT_ID:
+        required: false
+      AZURE_AD_APPLICATION_SECRET:
+        required: false
+      SELLER_ID:
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  # The kit version this workflow belongs to; must equal <Version> in the caller's kit submodule.
+  KIT_VERSION: '1.7.0'
+
+jobs:
+  publish:
+    if: inputs.submit_draft == ''
+    runs-on: windows-2025
+    # Two self-contained builds, bundling, the upload and the release-note verification.
+    timeout-minutes: 60
+
+    steps:
+      - name: Check publishing credentials
+        if: ${{ !inputs.dry_run }}
+        shell: pwsh
+        env:
+          AZURE_AD_TENANT_ID: ${{ secrets.AZURE_AD_TENANT_ID }}
+          SELLER_ID: ${{ secrets.SELLER_ID }}
+          AZURE_AD_APPLICATION_CLIENT_ID: ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}
+          AZURE_AD_APPLICATION_SECRET: ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
+        run: |
+          foreach ($name in @('AZURE_AD_TENANT_ID', 'SELLER_ID', 'AZURE_AD_APPLICATION_CLIENT_ID', 'AZURE_AD_APPLICATION_SECRET')) {
+            if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
+              throw "Missing GitHub Actions secret: $name"
+            }
+          }
+
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - name: Check the kit version
+        shell: pwsh
+        env:
+          KIT_PATH: ${{ inputs.kit_path }}
+        run: |
+          $props = Join-Path $env:KIT_PATH 'Directory.Build.props'
+          if (-not (Test-Path (Join-Path $env:KIT_PATH 'scripts/store'))) {
+            throw "No WinUI App Kit store helpers at $env:KIT_PATH/scripts/store. Check out submodules, or set kit_path."
+          }
+          $pinned = ([xml](Get-Content $props -Raw)).SelectSingleNode('//Version').InnerText
+          if ($pinned -ne $env:KIT_VERSION) {
+            throw "This workflow is WinUI App Kit $env:KIT_VERSION but $env:KIT_PATH is $pinned. Use the same tag in 'uses:' as the submodule pin."
+          }
+
+      - name: Read the app's packaging settings
+        id: app
+        shell: pwsh
+        env:
+          WINDOWS_BUILD_JSON: ${{ inputs.windows_build_json }}
+          NOTES_DIR: ${{ inputs.notes_dir }}
+        run: |
+          $config = Get-Content $env:WINDOWS_BUILD_JSON -Raw | ConvertFrom-Json
+          foreach ($key in @('package_script', 'package_output', 'project')) {
+            if (-not $config.PSObject.Properties[$key]) { throw "$env:WINDOWS_BUILD_JSON has no $key" }
+          }
+          $name = if ($config.PSObject.Properties['package_name']) { $config.package_name } else { [IO.Path]::GetFileNameWithoutExtension($config.project) }
+          $versionFile = if ($config.PSObject.Properties['version_file']) { $config.version_file } else { 'Directory.Build.props' }
+          $version = ([xml](Get-Content $versionFile -Raw)).SelectSingleNode('//Version').InnerText
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Store releases need a three-part <Version>, found '$version'" }
+          @(
+            "package_script=$($config.package_script)"
+            "package_output=$($config.package_output)"
+            "name=$name"
+            "version=$version"
+            "upload=$name-$version.msixupload"
+            "notes=$env:NOTES_DIR/$version.md"
+          ) >> $env:GITHUB_OUTPUT
+
+      - name: Validate submission recovery options
+        shell: pwsh
+        env:
+          REPAIR_DRAFT: ${{ inputs.repair_draft }}
+          CANCELED_DRAFT: ${{ inputs.replace_canceled_draft }}
+          FAILED_DRAFT: ${{ inputs.replace_failed_draft }}
+          FAILED_UPLOAD: ${{ inputs.failed_upload }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          $selected = @(@($env:REPAIR_DRAFT, $env:CANCELED_DRAFT, $env:FAILED_DRAFT) | Where-Object { $_ })
+          if ($selected.Count -gt 1) { throw 'Choose exactly one submission recovery option.' }
+          if ($env:FAILED_UPLOAD -and -not $env:FAILED_DRAFT) { throw 'failed_upload requires replace_failed_draft.' }
+          if ($env:DRY_RUN -eq 'true' -and $selected.Count -gt 0) { throw 'A dry run makes no Store change; it takes no recovery option.' }
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Check release notes
+        shell: pwsh
+        env:
+          NOTES: ${{ steps.app.outputs.notes }}
+        run: |
+          if (-not (Test-Path $env:NOTES)) { throw "Missing release notes: $env:NOTES" }
+          $notes = (Get-Content $env:NOTES -Raw).Trim()
+          if ([string]::IsNullOrWhiteSpace($notes) -or $notes.Length -gt 1500) { throw 'Missing or invalid release notes.' }
+
+      - name: Run the app's steps before packaging
+        if: inputs.pre_build != ''
+        shell: pwsh
+        env:
+          PRE_BUILD: ${{ inputs.pre_build }}
+        run: |
+          Invoke-Expression $env:PRE_BUILD
+          if (-not $?) { throw 'The pre_build step failed.' }
+
+      - name: Build MSIX packages (x64 + ARM64, unsigned for Store)
+        shell: pwsh
+        env:
+          PACKAGE_SCRIPT: ${{ steps.app.outputs.package_script }}
+        run: |
+          foreach ($plat in @('x64', 'ARM64')) {
+            Write-Host "::group::Build $plat MSIX"
+            & (Join-Path $env:GITHUB_WORKSPACE $env:PACKAGE_SCRIPT) -Platform $plat -NoSign
+            if ($LASTEXITCODE -ne 0) { throw "$env:PACKAGE_SCRIPT failed for $plat (exit $LASTEXITCODE)" }
+            Write-Host "::endgroup::"
+          }
+
+      # Keep Store packages on this runner; never upload public Actions artifacts.
+      - name: Bundle Store packages
+        shell: pwsh
+        env:
+          KIT_PATH: ${{ inputs.kit_path }}
+          NAME: ${{ steps.app.outputs.name }}
+          OUTPUT: ${{ steps.app.outputs.package_output }}
+          VERSION: ${{ steps.app.outputs.version }}
+        run: |
+          & (Join-Path $env:KIT_PATH 'scripts/store/build-store-upload.ps1') -AppName $env:NAME -OutputDirectory (Join-Path $env:GITHUB_WORKSPACE $env:OUTPUT) -Version $env:VERSION
+
+      - name: Dry run summary
+        if: inputs.dry_run
+        shell: pwsh
+        env:
+          PRODUCT: ${{ inputs.store_product_id }}
+          OUTPUT: ${{ steps.app.outputs.package_output }}
+          UPLOAD: ${{ steps.app.outputs.upload }}
+          NOTES: ${{ steps.app.outputs.notes }}
+          TIER: ${{ inputs.price_tier }}
+          NO_COMMIT: ${{ github.event_name == 'push' || inputs.no_commit }}
+        run: |
+          $upload = Get-Item (Join-Path (Join-Path $env:GITHUB_WORKSPACE $env:OUTPUT) $env:UPLOAD)
+          $tier = if ($env:TIER) { $env:TIER } else { 'unchanged (free)' }
+          $mode = if ($env:NO_COMMIT -eq 'true') { 'a draft, not committed' } else { 'committed for certification' }
+          @(
+            '## Store publish dry run'
+            ''
+            "Would upload $($upload.Name) ($([math]::Round($upload.Length / 1MB, 1)) MB) to Store product $env:PRODUCT,"
+            "with the notes in $env:NOTES, price tier $tier, as $mode."
+            ''
+            'Stopped here: no Store CLI was installed and no token or Store API call was made.'
+          ) -join "`n" >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Setup Microsoft Store CLI
+        if: ${{ !inputs.dry_run }}
+        uses: microsoft/microsoft-store-apppublisher@cc9910a8d59f2eb55cbb83df0a3800cf3b5300e0 # v1.4
+        with:
+          version: 'v0.4.3'
+
+      - name: Remove selected canceled Store submission
+        if: ${{ !inputs.dry_run && inputs.replace_canceled_draft != '' }}
+        shell: pwsh
+        env:
+          KIT_PATH: ${{ inputs.kit_path }}
+          PRODUCT: ${{ inputs.store_product_id }}
+          TIER: ${{ inputs.price_tier }}
+          SUBMISSION_ID: ${{ inputs.replace_canceled_draft }}
+          REPAIR_DRAFT: ${{ inputs.repair_draft }}
+          NO_COMMIT: ${{ inputs.no_commit }}
+          AZURE_AD_TENANT_ID: ${{ secrets.AZURE_AD_TENANT_ID }}
+          AZURE_AD_APPLICATION_CLIENT_ID: ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}
+          AZURE_AD_APPLICATION_SECRET: ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
+        run: |
+          if ($env:REPAIR_DRAFT) { throw 'Choose repair_draft or replace_canceled_draft, not both.' }
+          if ($env:NO_COMMIT -ne 'false') { throw 'Replacing a canceled release requires a committed submission.' }
+          & (Join-Path $env:KIT_PATH 'scripts/store/replace-canceled-store-draft.ps1') -AppId $env:PRODUCT -SubmissionId $env:SUBMISSION_ID -PriceId $env:TIER
+
+      - name: Remove selected failed Store submission
+        if: ${{ !inputs.dry_run && inputs.replace_failed_draft != '' }}
+        shell: pwsh
+        env:
+          KIT_PATH: ${{ inputs.kit_path }}
+          PRODUCT: ${{ inputs.store_product_id }}
+          SUBMISSION_ID: ${{ inputs.replace_failed_draft }}
+          FAILED_UPLOAD: ${{ inputs.failed_upload }}
+          REPAIR_DRAFT: ${{ inputs.repair_draft }}
+          CANCELED_DRAFT: ${{ inputs.replace_canceled_draft }}
+          NO_COMMIT: ${{ inputs.no_commit }}
+          AZURE_AD_TENANT_ID: ${{ secrets.AZURE_AD_TENANT_ID }}
+          AZURE_AD_APPLICATION_CLIENT_ID: ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}
+          AZURE_AD_APPLICATION_SECRET: ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
+        run: |
+          if ($env:REPAIR_DRAFT -or $env:CANCELED_DRAFT -or $env:NO_COMMIT -ne 'false') {
+            throw 'Replacing a failed submission requires no_commit=false without other repair options.'
+          }
+          & (Join-Path $env:KIT_PATH 'scripts/store/replace-failed-store-draft.ps1') -AppId $env:PRODUCT -SubmissionId $env:SUBMISSION_ID -UploadFileName $env:FAILED_UPLOAD
+
+      - name: Configure Store credentials
+        if: ${{ !inputs.dry_run && inputs.repair_draft == '' }}
+        shell: pwsh
+        env:
+          PRODUCT: ${{ inputs.store_product_id }}
+          AZURE_AD_TENANT_ID: ${{ secrets.AZURE_AD_TENANT_ID }}
+          SELLER_ID: ${{ secrets.SELLER_ID }}
+          AZURE_AD_APPLICATION_CLIENT_ID: ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}
+          AZURE_AD_APPLICATION_SECRET: ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
+        run: |
+          msstore reconfigure --tenantId "$env:AZURE_AD_TENANT_ID" --sellerId "$env:SELLER_ID" --clientId "$env:AZURE_AD_APPLICATION_CLIENT_ID" --clientSecret "$env:AZURE_AD_APPLICATION_SECRET"
+          if ($LASTEXITCODE -ne 0) { throw "Store authentication configuration failed (exit $LASTEXITCODE)" }
+          # The CLI deletes pending submissions before publishing. Preserve any existing draft.
+          $token = Invoke-RestMethod -Method Post -Uri "https://login.microsoftonline.com/$env:AZURE_AD_TENANT_ID/oauth2/token" -Body @{
+            grant_type = 'client_credentials'
+            client_id = $env:AZURE_AD_APPLICATION_CLIENT_ID
+            client_secret = $env:AZURE_AD_APPLICATION_SECRET
+            resource = 'https://manage.devcenter.microsoft.com'
+          }
+          $app = Invoke-RestMethod -Uri "https://manage.devcenter.microsoft.com/v1.0/my/applications/$env:PRODUCT" -Headers @{ Authorization = "Bearer $($token.access_token)" }
+          if ($null -ne $app.pendingApplicationSubmission) {
+            throw 'An existing Store submission is pending. Review it in Partner Center before starting another run.'
+          }
+
+      - name: Publish to Microsoft Store
+        if: ${{ !inputs.dry_run && inputs.repair_draft == '' }}
+        shell: pwsh
+        env:
+          # A tag run always stops at a draft; only a manual run can commit (REL-7).
+          NO_COMMIT: ${{ github.event_name == 'push' || inputs.no_commit }}
+          KIT_PATH: ${{ inputs.kit_path }}
+          PRODUCT: ${{ inputs.store_product_id }}
+          TIER: ${{ inputs.price_tier }}
+          OUTPUT: ${{ steps.app.outputs.package_output }}
+          UPLOAD: ${{ steps.app.outputs.upload }}
+          NOTES: ${{ steps.app.outputs.notes }}
+          VERSION: ${{ steps.app.outputs.version }}
+          AZURE_AD_TENANT_ID: ${{ secrets.AZURE_AD_TENANT_ID }}
+          AZURE_AD_APPLICATION_CLIENT_ID: ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}
+          AZURE_AD_APPLICATION_SECRET: ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
+        run: |
+          $publishArgs = @('publish', (Join-Path (Join-Path $env:GITHUB_WORKSPACE $env:OUTPUT) $env:UPLOAD), '-id', $env:PRODUCT)
+          # Stage first so release notes are saved and verified before certification begins.
+          $publishArgs += '--noCommit'
+          if ($env:TIER) { $publishArgs += @('--priceId', $env:TIER) }
+          & msstore @publishArgs
+          if ($LASTEXITCODE -ne 0) {
+            throw "Store publishing failed (exit $LASTEXITCODE). Review the submission in Partner Center."
+          }
+          $output = & (Join-Path $env:KIT_PATH 'scripts/store/set-store-release-notes.ps1') -AppId $env:PRODUCT -UploadFileName $env:UPLOAD -NotesPath $env:NOTES -Commit:($env:NO_COMMIT -ne 'true')
+          $output | Write-Output
+          if ($env:NO_COMMIT -eq 'true') {
+            $draftId = (($output | Out-String) | Select-String -Pattern 'Submission (\d+):').Matches[0].Groups[1].Value
+            @(
+              "Store draft $draftId uploaded with the v$env:VERSION release notes. Review it in Partner Center,"
+              "then run this workflow on tag v$env:VERSION with submit_draft = $draftId and no_commit unchecked."
+            ) -join "`n" >> $env:GITHUB_STEP_SUMMARY
+          } else {
+            'Store submission committed. Publication depends on Microsoft certification and the submission publishing settings.' >> $env:GITHUB_STEP_SUMMARY
+          }
+
+      - name: Repair existing Store draft
+        if: ${{ !inputs.dry_run && inputs.repair_draft != '' }}
+        shell: pwsh
+        env:
+          KIT_PATH: ${{ inputs.kit_path }}
+          PRODUCT: ${{ inputs.store_product_id }}
+          TIER: ${{ inputs.price_tier }}
+          OUTPUT: ${{ steps.app.outputs.package_output }}
+          UPLOAD: ${{ steps.app.outputs.upload }}
+          SUBMISSION_ID: ${{ inputs.repair_draft }}
+          NO_COMMIT: ${{ inputs.no_commit }}
+          AZURE_AD_TENANT_ID: ${{ secrets.AZURE_AD_TENANT_ID }}
+          AZURE_AD_APPLICATION_CLIENT_ID: ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}
+          AZURE_AD_APPLICATION_SECRET: ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
+        run: |
+          if ($env:NO_COMMIT -ne 'true') { throw 'Repairing a draft requires no_commit.' }
+          & (Join-Path $env:KIT_PATH 'scripts/store/repair-store-draft.ps1') -AppId $env:PRODUCT -SubmissionId $env:SUBMISSION_ID -PriceId $env:TIER -UploadPath (Join-Path (Join-Path $env:GITHUB_WORKSPACE $env:OUTPUT) $env:UPLOAD)
+
+  submit:
+    if: inputs.submit_draft != ''
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - name: Check the kit version
+        shell: pwsh
+        env:
+          KIT_PATH: ${{ inputs.kit_path }}
+        run: |
+          $pinned = ([xml](Get-Content (Join-Path $env:KIT_PATH 'Directory.Build.props') -Raw)).SelectSingleNode('//Version').InnerText
+          if ($pinned -ne $env:KIT_VERSION) {
+            throw "This workflow is WinUI App Kit $env:KIT_VERSION but $env:KIT_PATH is $pinned. Use the same tag in 'uses:' as the submodule pin."
+          }
+
+      - name: Verify the draft against the tag and submit it
+        shell: pwsh
+        env:
+          KIT_PATH: ${{ inputs.kit_path }}
+          PRODUCT: ${{ inputs.store_product_id }}
+          WINDOWS_BUILD_JSON: ${{ inputs.windows_build_json }}
+          NOTES_DIR: ${{ inputs.notes_dir }}
+          SUBMISSION_ID: ${{ inputs.submit_draft }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          NO_COMMIT: ${{ inputs.no_commit }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          REPAIR_DRAFT: ${{ inputs.repair_draft }}
+          REPLACE_DRAFT: ${{ inputs.replace_canceled_draft }}
+          FAILED_DRAFT: ${{ inputs.replace_failed_draft }}
+          AZURE_AD_TENANT_ID: ${{ secrets.AZURE_AD_TENANT_ID }}
+          AZURE_AD_APPLICATION_CLIENT_ID: ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}
+          AZURE_AD_APPLICATION_SECRET: ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
+        run: |
+          if ($env:DRY_RUN -eq 'true') { throw 'submit_draft commits a submission; it has no dry run.' }
+          if ($env:NO_COMMIT -ne 'false' -or $env:REPAIR_DRAFT -or $env:REPLACE_DRAFT -or $env:FAILED_DRAFT) {
+            throw 'Submitting a draft requires no_commit=false without other repair options.'
+          }
+          $config = Get-Content $env:WINDOWS_BUILD_JSON -Raw | ConvertFrom-Json
+          $name = if ($config.PSObject.Properties['package_name']) { $config.package_name } else { [IO.Path]::GetFileNameWithoutExtension($config.project) }
+          $versionFile = if ($config.PSObject.Properties['version_file']) { $config.version_file } else { 'Directory.Build.props' }
+          $version = ([xml](Get-Content $versionFile -Raw)).SelectSingleNode('//Version').InnerText
+          # Check the draft against the tag: the run must be on the release tag for this version,
+          # so the notes and upload name it verifies are the ones that tag shipped.
+          if ($env:REF_TYPE -ne 'tag' -or $env:REF_NAME -ne "v$version") {
+            throw "Run submit_draft on the release tag v$version (this run is on $env:REF_TYPE '$env:REF_NAME')."
+          }
+          & (Join-Path $env:KIT_PATH 'scripts/store/set-store-release-notes.ps1') -AppId $env:PRODUCT -ExpectedSubmissionId $env:SUBMISSION_ID -UploadFileName "$name-$version.msixupload" -NotesPath "$env:NOTES_DIR/$version.md" -Commit

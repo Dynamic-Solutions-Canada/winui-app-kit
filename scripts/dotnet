@@ -10,22 +10,24 @@
 # apps call the kit's copy, external/winui-app-kit/scripts/dotnet, and it must use the app's global.json.
 #
 # Environment overrides:
+#   KIT_SDK_COMMAND    the SDK tool to run (default dotnet; scripts/pwsh sets pwsh, which the SDK image ships)
 #   KIT_DOTNET_MEMORY  hard memory cap for the container (default 3g, no swap)
 #   NUGET_PACKAGES     package cache shared with the container (default ~/.nuget/packages)
 set -euo pipefail
 
 repo_root="$(pwd)"
+tool="${KIT_SDK_COMMAND:-dotnet}"
 export EnableWindowsTargeting=true
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
 export DOTNET_NOLOGO=1
 
 # Host SDK first: CI and machines that already have one need no container.
-if command -v dotnet >/dev/null 2>&1; then
-    exec dotnet "$@"
+if command -v "$tool" >/dev/null 2>&1; then
+    exec "$tool" "$@"
 fi
 
 if ! command -v docker >/dev/null 2>&1; then
-    printf 'scripts/dotnet: needs either the .NET SDK pinned in global.json or Docker; found neither.\n' >&2
+    printf 'scripts/dotnet: needs either %s on PATH or Docker for the SDK container; found neither.\n' "$tool" >&2
     exit 1
 fi
 
@@ -57,4 +59,4 @@ exec docker run --rm \
     -v "$repo_root:/src" \
     -w /src \
     "mcr.microsoft.com/dotnet/sdk:$sdk_version" \
-    dotnet "$@"
+    "$tool" "$@"

@@ -299,13 +299,14 @@ The check fails when:
 
 ## Packaging
 
-`build/build-msix.ps1` is the one MSIX packaging script for every app (KIT-9, DIST-1). The app deletes its own script and points `package_script` in `windows-build.json` at the kit's; the shared Windows build tooling runs it for `build:desktop`, `package:desktop` and `install:desktop`. Everything that differs between apps is a `windows-build.json` key, listed with its default at the top of the script; the minimum is:
+`build/build-msix.ps1` is the one MSIX packaging script for every app (KIT-9, DIST-1). The app deletes its own script and points `package_script` in `windows-build.json` at the kit's; the shared Windows build tooling runs it for `build:desktop`, `package:desktop` and `install:desktop`. Everything that differs between apps is a `windows-build.json` key, listed with its default at the top of the script. The minimum is below; `package_output` has a default in the script but the shared Windows build tooling reads it to collect the packages, so set it:
 
 ```json
 {
   "project": "MyApp/MyApp.csproj",
   "package_script": "external/winui-app-kit/build/build-msix.ps1",
   "msix_dir": "MyAppMSIX",
+  "package_output": "MyAppMSIX/bin/msix-output",
   "manifest_strings": { "catalog_dir": "MyApp/Strings" }
 }
 ```
@@ -316,6 +317,18 @@ The check fails when:
   - Signing material is only ever a parameter. There is no fallback certificate, no generated certificate and no written password, and `-NoSign` builds the unsigned Store upload.
   - `-StoreIdentity` builds a signed bundle with the Store identity, for updating a Store install in place.
   - signtool takes the password on its command line, where other processes of the same user can see it while it runs. That is accepted for the local development certificate and the per-run CI certificate.
+
+## Publishing to the Microsoft Store
+
+The kit holds the one Store publishing workflow (CI-10, REL-7) and its credential reminder (CI-11) as reusable workflows. An app calls them from two short workflows of its own; copy them from the kit's tested examples, `tests/store/callers/store-publish.yml` and `tests/store/callers/credential-expiry.yml`, and set the Store product ID, the price tier and any steps of its own.
+
+- **Draft, then submit (REL-7):** a `v*` tag builds both architectures unsigned, bundles them into one Store upload, uploads it with the release notes from `release-notes/<version>.md`, and stops at a draft. A manual run on the same tag with `submit_draft` set to that draft's ID checks the draft against the tag and commits it. Manual runs can also repair a draft, or replace a canceled or failed submission.
+- **Dry run:** a manual run with `dry_run` builds, bundles and checks everything, then stops before any Store call. It needs no secrets. The kit runs it on its own compile check whenever the publishing path changes.
+- **Inputs:** `store_product_id` (required), `price_tier` (empty for a free app), `pre_build` (the app's own steps before packaging), `windows_build_json`, `notes_dir` and `kit_path`. Packaging settings come from `windows-build.json`.
+- **Secrets:** the organization's `AZURE_AD_TENANT_ID`, `AZURE_AD_APPLICATION_CLIENT_ID`, `AZURE_AD_APPLICATION_SECRET` and `SELLER_ID`, passed with `secrets: inherit`.
+- **Credential reminder:** the second workflow fails 60 days before the Store secret expires. The caller passes the date from the `STORE_SECRET_EXPIRES` variable, set with `gh variable set STORE_SECRET_EXPIRES --body YYYY-MM-DD` whenever the secret is created or rotated.
+- **Same version everywhere:** the workflow uses the Store helpers from the app's kit submodule (`scripts/store/`). Keep the `uses:` tag equal to the submodule pin; the workflow fails at its first step if they differ.
+- **Paid apps:** packages are never uploaded as workflow artifacts, so a paid app's MSIX can't be downloaded from its public repo.
 
 ## Starting a resident app
 

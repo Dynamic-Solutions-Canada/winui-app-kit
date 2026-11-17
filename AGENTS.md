@@ -26,6 +26,7 @@ The kit owns the plumbing below and nothing else: no app's pages, settings field
 | Shared XAML (styles, settings shell, About page, Settings page rows), compiled by each app | `Xaml/`, with `Xaml/CompileCheck/` building it for the kit |
 | Shared build configuration for apps and the kit | `build/`, imported by the root `Directory.Build.props`, `Directory.Build.targets` and `Directory.Packages.props` |
 | Packaging and Windows build entry point for apps | `build/build-msix.ps1` (driven by each app's `windows-build.json`), `build/languages.json`, `scripts/windows-build` |
+| Microsoft Store publishing for apps | `.github/workflows/store-publish.yml` and `credential-expiry.yml` (reusable), `scripts/store/`, tests and caller examples in `tests/store/`; `KIT_VERSION` in `store-publish.yml` moves with `<Version>` |
 
 ## Conventions and gotchas
 

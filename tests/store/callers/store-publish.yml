@@ -1,0 +1,66 @@
+# Caller example: copy to .github/workflows/store-publish.yml in an app, then set store_product_id,
+# price_tier and pre_build. Keep the `uses:` tag equal to the app's external/winui-app-kit pin; the
+# reusable workflow stops at its first step if they differ.
+name: Publish to Microsoft Store
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Build, bundle and check, then stop before any Store call'
+        type: boolean
+        default: false
+      no_commit:
+        description: 'Stage a draft for review in Partner Center without submitting'
+        type: boolean
+        default: true
+      repair_draft:
+        description: 'Existing draft ID to repair with both architectures; requires no_commit'
+        type: string
+        default: ''
+      replace_canceled_draft:
+        description: 'Exact canceled tier submission ID to replace with a corrected release'
+        type: string
+        default: ''
+      submit_draft:
+        description: 'Draft ID from the tag run to submit for certification; run on that release tag with no_commit unchecked'
+        type: string
+        default: ''
+      replace_failed_draft:
+        description: 'Exact CommitFailed submission ID to replace after correcting its package'
+        type: string
+        default: ''
+      failed_upload:
+        description: 'Exact upload filename in the failed submission being replaced'
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+# One Store run at a time, and never cancel one that has started talking to Partner Center.
+concurrency:
+  group: store-package
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    uses: Dynamic-Solutions-Canada/winui-app-kit/.github/workflows/store-publish.yml@v1.8.0
+    with:
+      store_product_id: 9ABCDEF12345
+      # A paid app's Partner Center tier, such as Tier1012; leave empty for a free app.
+      price_tier: ''
+      # The app's own steps before packaging, if any, for example: & ./MyAppMSIX/generate-msix-images.ps1
+      pre_build: ''
+      # A tag run is always a draft (REL-7); these only matter for manual runs.
+      dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+      no_commit: ${{ github.event_name == 'push' || inputs.no_commit }}
+      repair_draft: ${{ inputs.repair_draft || '' }}
+      replace_canceled_draft: ${{ inputs.replace_canceled_draft || '' }}
+      submit_draft: ${{ inputs.submit_draft || '' }}
+      replace_failed_draft: ${{ inputs.replace_failed_draft || '' }}
+      failed_upload: ${{ inputs.failed_upload || '' }}
+    secrets: inherit

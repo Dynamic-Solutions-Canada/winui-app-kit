@@ -1,3 +1,7 @@
 {
-  "project": "Xaml/CompileCheck/WinUIAppKit.XamlCompileCheck.csproj"
+  "project": "Xaml/CompileCheck/WinUIAppKit.XamlCompileCheck.csproj",
+  "package_script": "build/build-msix.ps1",
+  "msix_dir": "Xaml/CompileCheck/MSIX",
+  "package_name": "WinUIAppKit.CompileCheck",
+  "package_output": "Xaml/CompileCheck/MSIX/bin/msix-output"
 }

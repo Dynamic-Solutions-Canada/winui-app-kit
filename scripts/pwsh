@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Run PowerShell 7 for the kit's PowerShell tests (tests/**/*.Tests.ps1): `pwsh` on PATH when there is
+# one, otherwise the .NET SDK container that global.json pins, which ships PowerShell. Same repo and
+# container rules as scripts/dotnet, which this calls.
+set -euo pipefail
+KIT_SDK_COMMAND=pwsh exec "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/dotnet" "$@"

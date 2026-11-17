@@ -1,0 +1,38 @@
+name: Store Publish Dry Run
+
+# Proves the reusable Store publishing workflow end to end without touching the Store: it packages the
+# kit's compile check (Xaml/CompileCheck, with its MSIX fixture) for both architectures, bundles them
+# into a Store upload, and stops before any Store call. Runs when the publishing path changes.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/store-publish.yml'
+      - '.github/workflows/store-publish-dry-run.yml'
+      - 'scripts/store/**'
+      - 'build/build-msix.ps1'
+      - 'Xaml/CompileCheck/**'
+  pull_request:
+    paths:
+      - '.github/workflows/store-publish.yml'
+      - '.github/workflows/store-publish-dry-run.yml'
+      - 'scripts/store/**'
+      - 'build/build-msix.ps1'
+      - 'Xaml/CompileCheck/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dry-run:
+    uses: ./.github/workflows/store-publish.yml
+    with:
+      store_product_id: 9TESTAPP0001
+      kit_path: '.'
+      notes_dir: release-notes
+      dry_run: true
