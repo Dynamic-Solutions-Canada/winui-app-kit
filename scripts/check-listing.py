@@ -10,6 +10,8 @@ It reads the `listing` block of the app's windows-build.json:
       "listing_path": "store-assets/microsoft/listings.json", default shown
       "catalog_dir": "MyApp/Localization/Catalogs",           default: localization.catalog_dir; none = English-only;
                                                               null = an English-only listing for a localized interface
+      "catalog_layout": "files",                              "files": <catalog>.json files; "folders": one
+                                                              <catalog>/ folder each (.resw, LOC-6)
       "notes_dir": "release-notes",                           default shown
       "readme": "README.md",                                  default shown
       "retired_names": ["Old Name"]                           names that must not appear in listing text
@@ -190,6 +192,16 @@ def check_notes(checker: Checker, notes_dir: Path, version: str, wording: list[s
                 checker.problems.append(f"{notes_dir.name}/{stray.name}: {entry['identity']} reuses {entry['catalog']}; remove this file")
 
 
+def catalog_names(catalog_dir: Path, layout: str) -> list[str]:
+    """
+    The app's wording catalogs: the stems of <catalog>.json files ("files"), or the names of the
+    folders that each hold one catalog, such as <catalog>/Resources.resw ("folders").
+    """
+    if layout == "folders":
+        return sorted(p.name for p in catalog_dir.iterdir() if p.is_dir()) if catalog_dir.is_dir() else []
+    return sorted(p.stem for p in catalog_dir.glob("*.json"))
+
+
 def main() -> int:
     root = Path.cwd()
     config_path = root / "windows-build.json"
@@ -211,7 +223,11 @@ def main() -> int:
         catalog_setting = None
     else:
         catalog_setting = settings.get("catalog_dir") or interface_catalogs
-    wording = sorted(p.stem for p in (root / catalog_setting).glob("*.json")) if catalog_setting else None
+    layout = settings.get("catalog_layout", "files")
+    if layout not in ("files", "folders"):
+        print(f"check-listing: listing.catalog_layout is {layout!r}; use \"files\" or \"folders\"", file=sys.stderr)
+        return 1
+    wording = catalog_names(root / catalog_setting, layout) if catalog_setting else None
     notes_dir = root / settings.get("notes_dir", "release-notes")
     readme_path = root / settings.get("readme", "README.md")
     version_file = root / config.get("version_file", "Directory.Build.props")
