@@ -11,7 +11,8 @@
         <TextBlock l10n:Localize.Text="kit.settings.reset-header" />
         <TextBlock l10n:Localize.Text="kit.settings.reset-desc" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap"
                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-        <Button x:Name="ResetButton" Click="ResetButton_Click" HorizontalAlignment="Left">
+        <Button x:Name="ResetButton" Click="ResetButton_Click" HorizontalAlignment="Left"
+                l10n:Localize.Name="kit.settings.reset-button">
             <StackPanel Style="{StaticResource IconLabelStyle}">
                 <FontIcon Glyph="&#xE777;" Style="{StaticResource ButtonGlyphStyle}" />
                 <TextBlock l10n:Localize.Text="kit.settings.reset-button" />

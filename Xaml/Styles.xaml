@@ -45,7 +45,8 @@
         <Setter Property="Margin" Value="2,0,0,2" />
     </Style>
 
-    <!-- Button content: a small glyph followed by a label. -->
+    <!-- Button content: a small glyph followed by a label. The button reads its accessible name from
+         plain text only, so a button using this sets l10n:Localize.Name to the label's key (UI-14). -->
     <Style x:Key="IconLabelStyle" TargetType="StackPanel">
         <Setter Property="Orientation" Value="Horizontal" />
         <Setter Property="Spacing" Value="8" />

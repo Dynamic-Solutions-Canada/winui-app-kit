@@ -42,7 +42,8 @@
                         <HyperlinkButton x:Name="ReleaseLink" l10n:Localize.Content="kit.about.view-release"
                                          Padding="0" Visibility="Collapsed" Click="ReleaseLink_Click" />
                     </StackPanel>
-                    <Button x:Name="CheckButton" Grid.Column="1" VerticalAlignment="Center" Click="CheckButton_Click">
+                    <Button x:Name="CheckButton" Grid.Column="1" VerticalAlignment="Center" Click="CheckButton_Click"
+                            l10n:Localize.Name="kit.about.check-for-updates">
                         <StackPanel Style="{StaticResource IconLabelStyle}">
                             <FontIcon Glyph="&#xE895;" Style="{StaticResource ButtonGlyphStyle}" />
                             <TextBlock l10n:Localize.Text="kit.about.check-for-updates" />
@@ -75,7 +76,8 @@
                         <TextBlock x:Name="LogsPath" Style="{StaticResource CaptionTextBlockStyle}"
                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                     </StackPanel>
-                    <Button Grid.Column="1" VerticalAlignment="Center" Click="OpenLogs_Click">
+                    <Button Grid.Column="1" VerticalAlignment="Center" Click="OpenLogs_Click"
+                            l10n:Localize.Name="kit.about.open-logs-folder">
                         <StackPanel Style="{StaticResource IconLabelStyle}">
                             <FontIcon Glyph="&#xE838;" Style="{StaticResource ButtonGlyphStyle}" />
                             <TextBlock l10n:Localize.Text="kit.about.open-logs-folder" />
