@@ -10,7 +10,8 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:l10n="using:WinUIAppKit.Localization">
-    <Grid>
+    <!-- Transparent over Mica; the high-contrast window colour in high contrast (see Styles.xaml). -->
+    <Grid Background="{ThemeResource SettingsWindowBackgroundBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="48" />
             <RowDefinition Height="*" />

@@ -141,6 +141,7 @@ Pages use these keys and never write padding, radius or header sizes inline (UI-
 | `IconLabelStyle` | `StackPanel` | Button content: a glyph then a label, spacing 8. Screen readers get no name from it, so set `l10n:Localize.Name` on the button to the label's key (UI-14) |
 | `ButtonGlyphStyle` | `FontIcon` | The glyph in `IconLabelStyle` content, size 14 |
 | `NavigationViewContentBackground`, `NavigationViewContentGridBorderBrush` | brushes | Transparent, so the settings window's Mica shows through |
+| `SettingsWindowBackgroundBrush` | brush | The settings window's background behind the shell: transparent over Mica, and the high-contrast window colour in high contrast. A window that doesn't host `SettingsShell` sets it on its root element, or Windows 10 shows a light background behind high-contrast content |
 
 ### Settings window
 
