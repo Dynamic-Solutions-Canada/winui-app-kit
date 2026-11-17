@@ -317,7 +317,7 @@ It reads an optional `notices` block in `windows-build.json`. Most apps need non
 | `product_name` | The name in the file's header. Default: `listing.product_name` |
 | `about_source` | The C# file defining `NoticesPath`, the repo-relative path the app builds its About link from. Optional; when set, the check holds the constant to the output path |
 
-Every package in the graph is listed with its version, licence, copyright and project link, except build tooling (names containing `BuildTools`), followed by each distinct licence text in full and a link to the .NET runtime's notices. Include the output in the package as `Content`, so it ships with the app.
+Every package in the graph is listed with its version, licence, copyright and project link, except build tooling (names containing `BuildTools`), followed by each distinct licence text in full and a link to the .NET runtime's notices. An Apache-2.0 package's own NOTICE file is passed on too, as that licence requires. Licence texts the script knows are MIT, BSD-3-Clause and Apache-2.0 (the last kept verbatim in `scripts/licences/`). Include the output in the package as `Content`, so it ships with the app.
 
 `check:notices` fails when:
 

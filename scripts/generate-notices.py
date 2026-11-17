@@ -21,8 +21,10 @@ build-time tooling (names containing "BuildTools"), which never ships in the MSI
 Licences are written out in full: a package's own licence file when it has one, otherwise the standard
 text for its SPDX expression. An expression the script has no text for fails the run, so a new
 dependency is never shipped without its licence; add the text to SPDX_TEXTS in the kit. Identical texts
-are printed once and referenced. The .NET runtime that ships inside the self-contained package is
-listed with a link to its notices.
+are printed once and referenced. A package under a licence that requires it (Apache-2.0) has the
+NOTICE file it ships passed on, printed once like the licence texts. PACKAGE_NOTES adds a line for
+package contents the nuspec doesn't describe. The .NET runtime that ships inside the self-contained
+package is listed with a link to its notices.
 
 --check also checks the app's links to the file: a string in the project's C# code that links to the
 app's own notices on GitHub (its origin remote; links into other repositories are skipped) (`/blob/<branch>/...` or `/raw/<branch>/...` ending in the output's file name) must
@@ -41,6 +43,19 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 PACKAGES = Path(os.environ.get("NUGET_PACKAGES", Path.home() / ".nuget" / "packages"))
+
+# Licence texts too long to keep inline, stored verbatim from their official source (Apache-2.0 from
+# https://www.apache.org/licenses/LICENSE-2.0.txt). Only surrounding blank lines are trimmed.
+LICENCES = Path(__file__).resolve().parent / "licences"
+
+# Apache-2.0 section 4(d): a NOTICE file the package ships must be passed on with it.
+NOTICE_LICENCES = {"Apache-2.0"}
+NOTICE_NAMES = {"notice", "notice.txt", "notice.md"}
+
+# Facts about a package's contents that its nuspec doesn't state, keyed by lower-case package id.
+PACKAGE_NOTES = {
+    "sqlitepclraw.lib.e_sqlite3": "Includes the SQLite engine, which is in the public domain: https://www.sqlite.org/copyright.html",
+}
 
 # Standard texts for the SPDX expressions in use. The copyright line comes from each package's nuspec.
 SPDX_TEXTS = {
@@ -79,6 +94,8 @@ DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF 
 IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.""",
 }
+
+SPDX_TEXTS["Apache-2.0"] = (LICENCES / "Apache-2.0.txt").read_text(encoding="utf-8").strip("\n")
 
 # Shipped inside the self-contained package but not in the NuGet graph (runtime packs).
 RUNTIME_ENTRIES = [
@@ -180,10 +197,27 @@ def licence_text(name, folder, license_type, license_value):
     fail(f"{name} declares no licence in its nuspec; check it by hand before shipping it")
 
 
+def notice_text(folder, license_type, license_value):
+    """
+    The NOTICE file a package ships at its root, when its licence requires passing it on
+    (NOTICE_LICENCES); otherwise None.
+    """
+    if license_type != "expression" or license_value not in NOTICE_LICENCES:
+        return None
+    for path in sorted(folder.iterdir()):
+        if path.is_file() and path.name.lower() in NOTICE_NAMES:
+            return path.read_text(encoding="utf-8-sig").strip()
+    return None
+
+
 def render(packages, product):
-    """Build the notices text: one section per component, then each distinct licence text once."""
+    """
+    Build the notices text: one section per component, then each distinct licence text once, then
+    each distinct NOTICE file once.
+    """
     sections = []
-    texts = []   # distinct licence texts, in first-use order
+    texts = []     # distinct licence texts, in first-use order
+    notices = []   # distinct NOTICE files, in first-use order
 
     for name, version in packages:
         folder, license_type, license_value, copyright_line, project_url = read_nuspec(name, version)
@@ -196,6 +230,14 @@ def render(packages, product):
             lines.append(f"  {copyright_line}")
         if project_url:
             lines.append(f"  {project_url}")
+
+        notice = notice_text(folder, license_type, license_value)
+        if notice:
+            if notice not in notices:
+                notices.append(notice)
+            lines.append(f"  NOTICE: notice {notices.index(notice) + 1} below")
+        if name.lower() in PACKAGE_NOTES:
+            lines.append(f"  Note: {PACKAGE_NOTES[name.lower()]}")
         sections.append("\n".join(lines))
 
     for component, licence, notices_url in RUNTIME_ENTRIES:
@@ -205,6 +247,8 @@ def render(packages, product):
     body = [header, "=" * 100, "COMPONENTS", "=" * 100, "", "\n\n".join(sections), ""]
     for index, text in enumerate(texts, 1):
         body += ["=" * 100, f"LICENCE TEXT {index}", "=" * 100, "", text, ""]
+    for index, text in enumerate(notices, 1):
+        body += ["=" * 100, f"NOTICE {index}", "=" * 100, "", text, ""]
     return "\n".join(body).rstrip() + "\n"
 
 
