@@ -223,7 +223,10 @@ public sealed class TrayIcon : IDisposable
         }
     }
 
-    /// <summary>Explorer restarted: add the icon again if it is meant to be showing.</summary>
+    /// <summary>
+    /// The taskbar was recreated (Explorer restarted, or a display or scaling change): add the icon again
+    /// if it is meant to be showing.
+    /// </summary>
     internal void Readd()
     {
         if (!_disposed && _visible && _hIcon != IntPtr.Zero)
@@ -251,16 +254,32 @@ public sealed class TrayIcon : IDisposable
         guidItem = Id,
     };
 
+    /// <summary>
+    /// Register the icon with the shell, replacing any registration it already has. Sets
+    /// <see cref="_added"/>, and logs a warning only when the icon could not be put in the tray at all.
+    /// </summary>
     private void Add()
     {
-        // A stale registration for the same GUID (crash, previous run) makes NIM_ADD fail.
+        // A stale registration for the same GUID (crash, previous run) makes NIM_ADD fail, so remove it first.
         Delete();
         var data = Data();
-        _added = Shell_NotifyIcon(NIM_ADD, ref data);
-        if (!_added)
+        if (Shell_NotifyIcon(NIM_ADD, ref data))
         {
-            Logger.Warn("Shell_NotifyIcon(NIM_ADD) failed");
+            _added = true;
+            return;
         }
+
+        // Explorer can still hold the icon despite the delete: TaskbarCreated also arrives on display and
+        // scaling changes, when nothing was lost. Updating it in place then succeeds and the icon is fine.
+        if (Shell_NotifyIcon(NIM_MODIFY, ref data))
+        {
+            _added = true;
+            Logger.Debug("Shell_NotifyIcon(NIM_ADD) failed; the shell still held the icon, so it was updated in place");
+            return;
+        }
+
+        _added = false;
+        Logger.Warn("Shell_NotifyIcon(NIM_ADD) and NIM_MODIFY both failed; the icon is not in the tray");
     }
 
     private void Delete()

@@ -481,6 +481,7 @@ Everything else behaves the same on both: the tray icon and its dark menu, flyou
 Apps link to this section rather than repeating it in their own docs.
 
 - **Identity values never change once shipped.** The app passes its own tray icon GUID, single-instance mutex name, startup task id and Run value name. Windows keys the user's show/hide choice for the tray icon on the GUID, so a new GUID loses that choice.
+- **Pass the real tray tooltip on the first `Update`.** The icon is not added until then. Explorer keeps the first tooltip in the icon's screen-reader name, and later tooltip changes have been seen appended to it rather than replacing it, so a placeholder such as "Starting" can be read out for as long as the app runs. Work out the state first, or use the app's name alone.
 - **Claim `SingleInstance` before loading settings,** so a second launch exits without touching the settings file.
 - **An app namespace ending in `.Windows` shadows WinRT `Windows.*`.** Write `global::Windows...` for WinRT types in that app.
 - **Never hide a flyout window yourself.** `FlyoutController` closes it by cloaking it and parking it off-screen, so WinUI keeps its composition surfaces and the next open is instant. It reveals the window only after it has rendered, and ignores a toggle within 300 ms of a dismissal (the tray click that closed it).

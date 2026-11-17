@@ -130,7 +130,8 @@ public sealed class TrayIconHost : IDisposable
 
         if (TaskbarCreatedMessage != 0 && (int)msg == TaskbarCreatedMessage)
         {
-            // Explorer restarted: every icon is gone and must be added again.
+            // The taskbar was recreated: after an Explorer restart every icon is gone and must be added
+            // again. It also arrives on display and scaling changes, when the shell may still hold them.
             Dispatcher.TryEnqueue(() =>
             {
                 foreach (var icon in _icons.Values.ToList())
