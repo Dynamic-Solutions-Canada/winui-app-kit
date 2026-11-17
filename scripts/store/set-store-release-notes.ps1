@@ -1,22 +1,29 @@
 <#
 .SYNOPSIS
-Verifies a newly uploaded Store draft, updates its English release notes, and optionally submits it.
+Verifies a newly uploaded Store draft, sets the release notes of every listing locale, and optionally
+submits it.
 .DESCRIPTION
-Requires the expected versioned upload so an unrelated pending draft cannot be submitted.
-Preserves all other listing, pricing, and publication settings. Credentials come from CI.
+Requires the expected versioned upload so an unrelated pending draft cannot be submitted. Each locale's
+"What's new" comes from resolve-store-release-notes.ps1: its catalog's notes file, else the English notes
+(always the English notes for an English-only listing). Preserves all other listing, pricing, and
+publication settings. Credentials come from CI.
 #>
 param(
     [Parameter(Mandatory)][ValidatePattern('^[A-Z0-9]+$')][string]$AppId,
     [Parameter(Mandatory)][string]$UploadFileName,
     [Parameter(Mandatory)][string]$NotesPath,
+    [string]$WindowsBuildJson = 'windows-build.json',
     [ValidatePattern('^[0-9]+$')][string]$ExpectedSubmissionId,
     [switch]$Commit
 )
 
 $ErrorActionPreference = 'Stop'
-$notes = (Get-Content -LiteralPath $NotesPath -Raw).Trim()
-if ([string]::IsNullOrWhiteSpace($notes) -or $notes.Length -gt 1500) {
-    throw 'Release notes must contain between 1 and 1500 characters.'
+# Resolve and check every locale's notes before touching the Store, so a bad file changes nothing.
+$notes = & (Join-Path $PSScriptRoot 'resolve-store-release-notes.ps1') -NotesPath $NotesPath -WindowsBuildJson $WindowsBuildJson
+function Get-LocaleNotes([string]$Locale) {
+    $key = $Locale.ToLowerInvariant()
+    if ($notes.Locales.ContainsKey($key)) { return $notes.Locales[$key] }
+    return $notes.Default
 }
 
 $api = "https://manage.devcenter.microsoft.com/v1.0/my/applications/$AppId"
@@ -43,21 +50,24 @@ if (@($draft.applicationPackages | Where-Object {
     throw 'The draft does not contain the expected release upload.'
 }
 
-# Only replace English copy; preserve any translated listings and platform overrides.
-$englishListings = @($draft.listings.PSObject.Properties | Where-Object Name -Match '^en(-|$)')
-if ($englishListings.Count -eq 0) { throw 'No English Store listing was found.' }
-foreach ($listing in $englishListings) {
-    $listing.Value.baseListing | Add-Member -NotePropertyName releaseNotes -NotePropertyValue $notes -Force
+# Set every listing's notes; everything else in the listing and its platform overrides is kept.
+$listings = @($draft.listings.PSObject.Properties)
+if (@($listings | Where-Object Name -Match '^en(-|$)').Count -eq 0) { throw 'No English Store listing was found.' }
+foreach ($listing in $listings) {
+    $listing.Value.baseListing | Add-Member -NotePropertyName releaseNotes -NotePropertyValue (Get-LocaleNotes $listing.Name) -Force
 }
 Invoke-RestMethod -Method Put -Uri $uri -Headers $headers -ContentType 'application/json' -Body ($draft | ConvertTo-Json -Depth 100) | Out-Null
 
 $verified = Invoke-RestMethod -Uri $uri -Headers $headers
-foreach ($listing in $englishListings) {
-    if ($verified.listings.($listing.Name).baseListing.releaseNotes -cne $notes) {
+foreach ($listing in $listings) {
+    if ($verified.listings.($listing.Name).baseListing.releaseNotes -cne (Get-LocaleNotes $listing.Name)) {
         throw "Release notes were not retained for $($listing.Name)."
     }
 }
-Write-Output "Submission ${submissionId}: verified What's new: $notes"
+$fromEnglish = @($listings | Where-Object { (Get-LocaleNotes $_.Name) -ceq $notes.Default } | ForEach-Object Name)
+$translated = @($listings | Where-Object { (Get-LocaleNotes $_.Name) -cne $notes.Default } | ForEach-Object Name)
+Write-Output "Submission ${submissionId}: verified What's new: $($notes.Default)"
+Write-Output "English notes: $($fromEnglish -join ', '); translated notes: $(if ($translated) { $translated -join ', ' } else { 'none' })$(if ($notes.EnglishOnly) { ' (English-only listing)' })"
 Write-Output "Price tier: $($verified.pricing.priceId); publishing mode: $($verified.targetPublishMode)"
 
 if ($Commit) {

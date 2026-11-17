@@ -35,7 +35,7 @@ on:
         type: string
         default: 'windows-build.json'
       notes_dir:
-        description: 'Folder holding release notes as <version>.md'
+        description: 'Folder holding release notes as <version>.md, plus <version>.<catalog>.md for each translated listing'
         type: string
         default: 'release-notes'
       gate_command:
@@ -209,11 +209,14 @@ jobs:
       - name: Check release notes
         shell: pwsh
         env:
+          KIT_PATH: ${{ inputs.kit_path }}
           NOTES: ${{ steps.app.outputs.notes }}
+          WINDOWS_BUILD_JSON: ${{ inputs.windows_build_json }}
         run: |
-          if (-not (Test-Path $env:NOTES)) { throw "Missing release notes: $env:NOTES" }
-          $notes = (Get-Content $env:NOTES -Raw).Trim()
-          if ([string]::IsNullOrWhiteSpace($notes) -or $notes.Length -gt 1500) { throw 'Missing or invalid release notes.' }
+          # Every locale's notes, before anything is built: a missing, empty or over-long file stops here.
+          $notes = & (Join-Path $env:KIT_PATH 'scripts/store/resolve-store-release-notes.ps1') -NotesPath $env:NOTES -WindowsBuildJson $env:WINDOWS_BUILD_JSON
+          $translated = @($notes.Locales.Keys | Where-Object { $notes.Locales[$_] -cne $notes.Default } | Sort-Object)
+          Write-Output "Release notes: English for every locale$(if ($translated) { " except $($translated -join ', ')" })$(if ($notes.EnglishOnly) { ' (English-only listing)' })."
 
       - name: Run the app's steps before packaging
         if: inputs.pre_build != ''
@@ -350,6 +353,7 @@ jobs:
           OUTPUT: ${{ steps.app.outputs.package_output }}
           UPLOAD: ${{ steps.app.outputs.upload }}
           NOTES: ${{ steps.app.outputs.notes }}
+          WINDOWS_BUILD_JSON: ${{ inputs.windows_build_json }}
           VERSION: ${{ steps.app.outputs.version }}
           AZURE_AD_TENANT_ID: ${{ secrets.AZURE_AD_TENANT_ID }}
           AZURE_AD_APPLICATION_CLIENT_ID: ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}
@@ -363,7 +367,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "Store publishing failed (exit $LASTEXITCODE). Review the submission in Partner Center."
           }
-          $output = & (Join-Path $env:KIT_PATH 'scripts/store/set-store-release-notes.ps1') -AppId $env:PRODUCT -UploadFileName $env:UPLOAD -NotesPath $env:NOTES -Commit:($env:NO_COMMIT -ne 'true')
+          $output = & (Join-Path $env:KIT_PATH 'scripts/store/set-store-release-notes.ps1') -AppId $env:PRODUCT -UploadFileName $env:UPLOAD -NotesPath $env:NOTES -WindowsBuildJson $env:WINDOWS_BUILD_JSON -Commit:($env:NO_COMMIT -ne 'true')
           $output | Write-Output
           if ($env:NO_COMMIT -eq 'true') {
             $draftId = (($output | Out-String) | Select-String -Pattern 'Submission (\d+):').Matches[0].Groups[1].Value
@@ -446,4 +450,4 @@ jobs:
           if ($env:REF_TYPE -ne 'tag' -or $env:REF_NAME -ne "v$version") {
             throw "Run submit_draft on the release tag v$version (this run is on $env:REF_TYPE '$env:REF_NAME')."
           }
-          & (Join-Path $env:KIT_PATH 'scripts/store/set-store-release-notes.ps1') -AppId $env:PRODUCT -ExpectedSubmissionId $env:SUBMISSION_ID -UploadFileName "$name-$version.msixupload" -NotesPath "$env:NOTES_DIR/$version.md" -Commit
+          & (Join-Path $env:KIT_PATH 'scripts/store/set-store-release-notes.ps1') -AppId $env:PRODUCT -ExpectedSubmissionId $env:SUBMISSION_ID -UploadFileName "$name-$version.msixupload" -NotesPath "$env:NOTES_DIR/$version.md" -WindowsBuildJson $env:WINDOWS_BUILD_JSON -Commit
