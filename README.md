@@ -187,6 +187,8 @@ Shell.ContentFrame.Navigate(typeof(AboutPage), new AboutInfo
 
 The version is the 4-part package version, marked "(unpackaged)" when the app runs unpackaged. A link with no target is hidden. "Open logs folder" opens the folder named in `AppLogging.UseDataFolder`.
 
+Set `ThirdPartyNotices` to the GitHub link of the file the [third-party notices](#third-party-notices) generator writes. Keep its path in a constant, `public const string NoticesPath = "MyApp/THIRD-PARTY-NOTICES.txt";`, build the link as `new Uri(source + "/blob/main/" + NoticesPath)`, and name the constant's file as `notices.about_source`, so `check:notices` fails if the path and the file ever part.
+
 ### Settings page rows
 
 The rows every app's Settings page has (UI-4) are three controls in `WinUIAppKit.Controls`. Each applies a change at once and raises an event so the app saves the choice in its own settings; every edit saves immediately, with no Save button.
@@ -296,6 +298,33 @@ The check fails when:
 - caption counts differ between locales, or any text has an em dash or a retired name;
 - a title isn't the product name, or the README's header tagline isn't the first sentence of the en-US `shortDescription`;
 - the release notes for the current `<Version>` are missing for any wording catalog, have a heading, run over 1,500 characters, or include a file for a Canadian identity.
+
+### Third-party notices
+
+`scripts/generate-notices.py` writes the app's third-party notices from its NuGet restore graph (HYG-3). Apps run it from their repo root as two scripts, and put `check:notices` in `validate` after `format:check`, which restores the project:
+
+```json
+"generate:notices": "python3 external/winui-app-kit/scripts/generate-notices.py",
+"check:notices": "python3 external/winui-app-kit/scripts/generate-notices.py --check"
+```
+
+It reads an optional `notices` block in `windows-build.json`. Most apps need none of it:
+
+| Key | Use |
+| --- | --- |
+| `project` | The project whose packages ship. Default: the top-level `project` |
+| `output` | Where the notices go. Default: `THIRD-PARTY-NOTICES.txt` beside the project |
+| `product_name` | The name in the file's header. Default: `listing.product_name` |
+| `about_source` | The C# file defining `NoticesPath`, the repo-relative path the app builds its About link from. Optional; when set, the check holds the constant to the output path |
+
+Every package in the graph is listed with its version, licence, copyright and project link, except build tooling (names containing `BuildTools`), followed by each distinct licence text in full and a link to the .NET runtime's notices. Include the output in the package as `Content`, so it ships with the app.
+
+`check:notices` fails when:
+
+- the committed file differs from what the generator writes now (run `generate:notices` and commit it);
+- a package declares no licence, names a licence file it doesn't contain, or uses an SPDX licence the script has no text for (add the text to `SPDX_TEXTS` in the kit);
+- a string in the project's C# code links to the app's own notices on GitHub (`/blob/<branch>/` or `/raw/<branch>/`, ending in the output's file name) but names another path, such as the About page's link. Links into another repository, such as the .NET runtime's notices, are skipped; the app's repository comes from its `origin` remote, and without one every such link is checked.
+- `about_source` is set and that file has no `NoticesPath = "..."` constant, or the constant isn't the output path.
 
 ## Packaging
 
