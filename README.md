@@ -337,6 +337,39 @@ The check fails when:
 - a title isn't the product name, or the README's header tagline isn't the first sentence of the en-US `shortDescription`;
 - the release notes for the current `<Version>` are missing for any wording catalog, have a heading, run over 1,500 characters, or include a file for a Canadian identity.
 
+### Store screenshots
+
+`scripts/store/render-screenshots.py` frames the app's raw window captures into its Microsoft Store screenshots and checks them (LIST-8, ASSET-9). Apps run it from their repo root as two scripts, with the check in `validate`:
+
+```json
+"shots:render": "python3 external/winui-app-kit/scripts/store/render-screenshots.py",
+"check:screenshots": "python3 external/winui-app-kit/scripts/store/render-screenshots.py --check"
+```
+
+It reads `store-assets/manifest.json`, every Store screenshot in listing order:
+
+```json
+{
+  "microsoft": [
+    { "file": "screenshots/00-home-dark.png", "source": "raw/microsoft/00-home-dark.png",
+      "theme": "dark", "caption": "The en-US caption", "alt": "What the screenshot shows" }
+  ]
+}
+```
+
+| Key | Use |
+| --- | --- |
+| `size` | Optional, top level. The output size, default `1366x768` |
+| `file` | The rendered screenshot, under `store-assets/microsoft/` |
+| `source` | The raw capture, under `store-assets/` (committed) |
+| `theme` | Always `dark`: Store screenshots show dark mode |
+| `caption`, `alt` | The en-US caption (the same text and order as `screenshotCaptions` in `listings.json`) and alt text |
+
+- **Capture** the installed app on a test VM with the windows-build-tools app-test recipe: the window only, at 1:1, with its extended frame bounds (no shadow, no resize border). Click a neutral spot first so no focus rectangle shows, and keep the window under 1318 x 720 so it fits with a margin.
+- **Render:** each capture loses its 1-pixel border (it shows the desktop through), gets a soft shadow and is centred at 1:1, never scaled, on the Windows 11 default dark wallpaper, scaled to cover and centre-cropped. The output is 8-bit RGB without alpha. The wallpaper is read from the Windows install at render time (`/mnt/c/Windows/Web/Wallpaper/Windows/img19.jpg`) or passed with `--wallpaper`; it is Microsoft's image, so it is never committed and there is no fallback. ImageMagick runs in a disposable container capped at 1 GB, so the host needs only Docker; files stay owned by the caller. A capture too large to fit with a 24-pixel margin stops the render.
+- **Check** (no Docker) fails when an entry isn't dark, is missing, isn't exactly the output size, or isn't 8-bit RGB without alpha; when a caption or alt text is empty; when a PNG in the screenshots folder isn't in the manifest; when there are fewer than 1 or more than 10; or when the captions differ from the en-US `screenshotCaptions` in `store-assets/microsoft/listings.json`.
+- **Sync** the files and each locale's captions to Partner Center with the next submission, in the same upload archive as its package: a second archive replaces the package.
+
 ### Third-party notices
 
 `scripts/generate-notices.py` writes the app's third-party notices from its NuGet restore graph (HYG-3). Apps run it from their repo root as two scripts, and put `check:notices` in `validate` after `format:check`, which restores the project:
