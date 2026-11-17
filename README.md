@@ -23,7 +23,7 @@ Shared plumbing for small WinUI 3 desktop apps that live in the system tray: the
 | App | `AppBootstrap`, `HostWindow` | Crash logging, then settings, then the hidden host window, in that order; the host is a 1x1 off-screen tool window that answers a second launch and runs the app's exit steps before `Environment.Exit` |
 | App | `AppEnvironment`, `SingleInstance` | Packaged or not, version, data folders, one running copy (bringing the first copy forward, with or without a host window) |
 | Updates | `UpdateService`, `UpdateCheckResult`, `GitHubReleases` | The About page's "Check for updates": the Store's updates page when packaged, the app's GitHub Releases when not; never in the background |
-| Logging | `AppLogging` | Names the app's data folder for the shared NLog config (one log file per launch beside `settings.json`, keeping the current file and three older ones), and opens that folder for "Open logs folder" |
+| Logging | `AppLogging` | Names the app's data folder for the shared NLog config (one log file per launch beside `settings.json`, named from its start time in UTC, keeping the current file and three older ones), and opens that folder for "Open logs folder" |
 
 Win32 declarations shared by these live in `Interop/NativeMethods.cs`.
 
