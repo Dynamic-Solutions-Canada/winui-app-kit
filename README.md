@@ -17,7 +17,7 @@ Shared plumbing for small WinUI 3 desktop apps that live in the system tray: the
 | Settings | `ProtectedStore`, `IDataProtector`, `AtomicFile` | Credentials kept outside `settings.json`, encrypted to the Windows user; atomic file replacement |
 | Startup | `StartupRegistration`, `StartupStatus`, `RunEntry` | Start with Windows for packaged (startup task) and unpackaged (Run key) builds; reports when the user (in Windows Settings) or a policy decides instead of the app; re-points a moved portable copy's entry |
 | Theming | `AppTheme` | System / light / dark choice applied to every open window |
-| Localization | `SupportedLanguages`, `UiText`, `Localize`, `LocalizedMessage` | Interface text from per-language JSON catalogs embedded in the app, chosen from the user's override or Windows' languages; XAML attached properties that relabel open windows live; messages stored as key plus values so they follow a language change; the kit's own translated shared labels (`kit.*`) |
+| Localization | `SupportedLanguages`, `UiText`, `Localize`, `LocalizedMessage`, `TextCatalogs`, `TextLookup`, `PluralRules`, `TextFormat` | Interface text from per-language JSON catalogs embedded in the app (one file per language, or area files merged at load), chosen from the user's override or Windows' languages; plurals; a dependency-free core a companion process can link; XAML attached properties that relabel open windows live; messages stored as key plus values so they follow a language change; the kit's own translated shared labels (`kit.*`) |
 | Shared XAML | `Styles.xaml`, `SettingsShell`, `AboutPage`, `AboutInfo`, `WindowChrome.SetUpSettingsWindow` | The family's page and card styles, the settings window shell with its fixed footer, and the About page with the standard cards; compiled by the app (see "Shared XAML") |
 | Shared XAML | `StartupSetting`, `ThemeSetting`, `LanguageSetting`, `ResetSetting` | The Settings page rows every app has: Start with Windows, App theme, Language and Reset settings |
 | App | `AppBootstrap`, `HostWindow` | Crash logging, then settings, then the hidden host window, in that order; the host is a 1x1 off-screen tool window that answers a second launch and runs the app's exit steps before `Environment.Exit` |
@@ -265,6 +265,15 @@ The shell, the About page and the settings every app has use labels the kit owns
 
 The full list, with every translation, is in `WinUIAppKit/Localization/Catalogs/`. Translations new in the kit are machine translations, not yet reviewed.
 
+### Interface text in code
+
+`UiText.Get`, `Format` and `Source` are unchanged. Also:
+
+- **Plurals:** `UiText.Plural("files.count", n, ("folder", name))` reads `files.count.one` or `files.count.other` by the language's rule and fills `{{count}}` with `n`. English, Spanish and German use "one" only for 1; French and Portuguese also for 0; Chinese and Japanese always use "other", so their catalogs give both forms the same text. Define both forms in every catalog. A language needing more forms needs a rule in `PluralRules` first.
+- **Catalogs split by area:** instead of `<catalog>.json`, an app may embed `<catalog>/<area>.json` files under the same prefix (for example `LogicalName="MyApp.Catalogs.%(RecursiveDir)%(Filename)%(Extension)"`). They are merged when a catalog is first read; a key in two areas keeps the first and is logged, and `check:l10n` with `catalog_layout: "folders"` fails on it before anything ships.
+- **`UiText.DeviceLocale`** is the identity "Use system setting" resolves to, for a label such as "Use system setting (Français)". **`UiText.Catalog(identity)`** returns a whole merged catalog, for completeness tests or searching another language's wording.
+- **A process without WinUI, WinRT or NLog** (a Native AOT companion, a test harness) links `Localization/TextCatalogs.cs` and `Localization/SupportedLanguages.cs` and uses `new TextLookup(new TextCatalogs(assembly, prefix), languages, () => locale)` directly, with the same `Get`, `Format`, `Plural` and `Catalog`. It works out `locale` itself, for example `languages.NormalizeOverride(saved) ?? languages.Resolve(preferences)`. `UiText` is a wrapper over the same core.
+
 ### Interface text check
 
 `scripts/check-localization.py` is the one catalog check (LOC-9). Apps run it as `check:l10n`, part of `validate`, from their repo root: `"check:l10n": "python3 external/winui-app-kit/scripts/check-localization.py"`. It reads a `localization` block in `windows-build.json`:
@@ -283,11 +292,14 @@ The full list, with every translation, is in `WinUIAppKit/Localization/Catalogs/
 | `english_keys` | `true` when the English text is the key, so each en-US value must equal its key. Keys the manifest uses (`ms-resource:Resources/<Key>`) are exempt and count as used; see [Packaging](#packaging) |
 | `extra_key_patterns` | Regexes with one group, for keys the code builds from constants |
 | `unused_ok` | Key globs used by text matching rather than as literals |
+| `catalog_layout` | `"files"` (default): one `<catalog>.json` each. `"folders"`: `<catalog>/<area>.json` files, merged the way `UiText` merges them |
 
 The check fails when:
 
-- a catalog's keys differ from en-US, a value is empty, a translation's `{{placeholders}}` differ, or any text has an em dash;
-- code or XAML uses a key no catalog defines, or a catalog key is never used. It counts `UiText.Get`, `Format` and `Source` calls, `Localize.SetX` calls, `l10n:Localize` attributes and the extra patterns;
+- a catalog's keys differ from en-US, a value is empty, a translation's `{{placeholders}}` differ (a plural form may leave out `{{count}}`), or any text has an em dash;
+- with `"folders"`, a key is defined in two area files of one catalog;
+- a plural key lacks one of its forms: `UiText.Plural("x", ...)` uses `x.one` and `x.other`, and both must exist;
+- code or XAML uses a key no catalog defines, or a catalog key is never used. It counts the literals at the top level of `UiText.Get`, `Format`, `Source` and `Plural` calls (literals inside nested parentheses are values, not keys), `Localize.SetX` calls, `l10n:Localize` attributes and the extra patterns;
 - the app defines a `kit.` key, or uses one the kit lacks;
 - the manifest's languages, or the catalog files on disk, differ from `build/languages.json`, or from en-US alone for an English-only app (LOC-3).
 
