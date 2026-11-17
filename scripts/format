@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# Format every C# project in the repo with the root .editorconfig (STYLE-1, STYLE-2). The one copy for
+# the kit and every app; run it from the repo root (npm does this):
+#   external/winui-app-kit/scripts/format          rewrite files until they settle
+#   external/winui-app-kit/scripts/format --check  fail on any difference (used by `npm run validate`)
+#
+# Projects are found by walking the tree, never listed by hand. Submodules under external/ are never
+# formatted here (KIT-8), and neither are scratch copies under .artifacts/ or node_modules/.
+#
+# One `dotnet format` pass can leave work for the next: inserting braces creates new whitespace to fix.
+# So a rewrite repeats until --verify-no-changes passes, at most MAX_PASSES times, and fails if the
+# project never settles rather than leaving format:check to fail later.
+#
+# Runs through the kit's scripts/dotnet, so it works on Linux with either the pinned SDK or Docker.
+set -euo pipefail
+
+MAX_PASSES=3
+kit_scripts="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+dotnet="$kit_scripts/dotnet"
+
+check=false
+if [[ "${1:-}" == "--check" ]]; then
+    check=true
+fi
+
+mapfile -t projects < <(
+    find . -name '*.csproj' \
+        -not -path './external/*' -not -path './.artifacts/*' -not -path '*/node_modules/*' \
+        -not -path '*/bin/*' -not -path '*/obj/*' | sort
+)
+if [[ ${#projects[@]} -eq 0 ]]; then
+    printf 'format: no .csproj under %s; run from the repo root\n' "$(pwd)" >&2
+    exit 1
+fi
+
+# Rewrite one project until a verify pass finds nothing left to change. Returns 1 if it never settles.
+format_until_settled() {
+    local project="$1" pass
+    for ((pass = 1; pass <= MAX_PASSES; pass++)); do
+        "$dotnet" format "$project" --exclude external/
+        if "$dotnet" format "$project" --exclude external/ --verify-no-changes >/dev/null 2>&1; then
+            if [[ $pass -gt 1 ]]; then
+                printf 'format: %s settled after %d passes\n' "$project" "$pass"
+            fi
+            return 0
+        fi
+    done
+    printf 'format: %s still changes after %d passes; run `dotnet format %s --verify-no-changes` to see what\n' \
+        "$project" "$MAX_PASSES" "$project" >&2
+    return 1
+}
+
+failures=0
+for project in "${projects[@]}"; do
+    printf 'format: %s\n' "$project"
+    if $check; then
+        "$dotnet" format "$project" --exclude external/ --verify-no-changes || failures=$((failures + 1))
+    else
+        format_until_settled "$project" || failures=$((failures + 1))
+    fi
+done
+
+if [[ $failures -gt 0 ]]; then
+    if $check; then
+        printf 'format: %d project(s) need formatting; run `npm run format`.\n' "$failures" >&2
+    else
+        printf 'format: %d project(s) did not settle.\n' "$failures" >&2
+    fi
+    exit 1
+fi
