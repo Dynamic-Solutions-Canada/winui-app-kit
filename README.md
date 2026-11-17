@@ -12,7 +12,7 @@ Shared plumbing for small WinUI 3 desktop apps that live in the system tray: the
 | Tray | `TrayIconRasterizer` | Turns tray artwork drawn in code into a crisp PNG at the tray's exact pixel size, with the taskbar ink colours and a rounded-rectangle helper |
 | Windows | `FlyoutController` | Turns a `Window` into a tray flyout: acrylic, rounded corners, placed by the taskbar, dismissed on focus loss or Esc, parked off-screen for instant reopening |
 | Windows | `ConfirmDialog` | The one yes/no confirmation: Cancel is the default button, one question per window, and "no" when the window closes |
-| Windows | `WindowChrome`, `WindowIcon`, `WindowPlacement` | Sharp window icons, saved size and position (ignored if the monitor is gone), bring-to-front |
+| Windows | `WindowChrome`, `WindowIcon`, `WindowPlacement` | Sharp window icons, saved size and position (ignored if the monitor is gone), a minimum size that follows each monitor's scaling, bring-to-front |
 | Settings | `JsonSettingsStore<T>`, `SettingsLoadResult<T>` | Atomic JSON load/save of the app's own settings class, with a schema version, ordered migrations, backups, and first run, unreadable and reset reported apart |
 | Settings | `ProtectedStore`, `IDataProtector`, `AtomicFile` | Credentials kept outside `settings.json`, encrypted to the Windows user; atomic file replacement |
 | Startup | `StartupRegistration`, `StartupStatus`, `RunEntry` | Start with Windows for packaged (startup task) and unpackaged (Run key) builds; reports when the user (in Windows Settings) or a policy decides instead of the app; re-points a moved portable copy's entry |
@@ -166,7 +166,7 @@ Shell.PageSelected += tag => Shell.ContentFrame.Navigate(tag switch
 Shell.Select("home");
 ```
 
-The footer is always "Our other apps" then "About", and the built-in Settings item follows the app's language. `SetUpSettingsWindow` applies Mica, the custom title bar, the window icon, the saved placement and the app's theme. The app keeps one instance of the window and saves `WindowChrome.CapturePlacement` when it closes.
+The footer is always "Our other apps" then "About", and the built-in Settings item follows the app's language. `SetUpSettingsWindow` applies Mica, the custom title bar, the window icon, a minimum size (500 × 500 DIPs unless the app passes `minWidthDip` and `minHeightDip`), the saved placement and the app's theme. The shell shows the full 240-wide pane from 860 epx wide, and a compact icon rail below that, so pages keep about 450 epx at the minimum; `WindowChrome.SetMinimumSize` gives any other window the same scale-aware minimum. The app keeps one instance of the window and saves `WindowChrome.CapturePlacement` when it closes.
 
 ### About page
 
@@ -348,6 +348,23 @@ Every package in the graph is listed with its version, licence, copyright and pr
   - `-StoreIdentity` builds a signed bundle with the Store identity, for updating a Store install in place.
   - signtool takes the password on its command line, where other processes of the same user can see it while it runs. That is accepted for the local development certificate and the per-run CI certificate.
 
+## Touring an installed app
+
+`scripts/app-test/tour.ps1` screenshots every page of a kit app's settings window in the app's light and dark themes and in Windows high contrast, plus "Our other apps" at a narrow width. It runs in a test VM through the windows-build-tools app-test recipe (`vm/app-test/` in that repo, which installs the package and owns `ui-lib.ps1`), never on the host's own desktop. Copy the tour and `ui-lib.ps1` to `C:\apptest`, write `C:\apptest\tour.json`, and run the tour with `app_test_ui`:
+
+```json
+{ "package": "MyCompany.MyApp", "process": "MyApp", "prefix": "myapp", "skip": [] }
+```
+
+| Key | Use |
+| --- | --- |
+| `package` | The installed package's name, as `Get-AppxPackage` finds it |
+| `process` | The app's process name, without `.exe` |
+| `prefix` | The start of each screenshot's name: `C:\apptest\out\<prefix>-<theme>-<page>.png` |
+| `skip` | Navigation items the tour must not click, because clicking one acts (creates or changes something) instead of opening a page |
+
+It relies on the kit's Settings page (its "App theme" combo box) and the "Our other apps" item, and leaves the app on "Use system settings" and closed.
+
 ## Publishing to the Microsoft Store
 
 The kit holds the one Store publishing workflow (CI-10, REL-7) and its credential reminder (CI-11) as reusable workflows. An app calls them from two short workflows of its own; copy them from the kit's tested examples, `tests/store/callers/store-publish.yml` and `tests/store/callers/credential-expiry.yml`, and set the Store product ID, the price tier and any steps of its own.
@@ -356,9 +373,9 @@ The kit holds the one Store publishing workflow (CI-10, REL-7) and its credentia
 - **Draft, then submit (REL-7):** a `v*` tag builds both architectures unsigned, bundles them into one Store upload, uploads it with the release notes from `release-notes/<version>.md`, and stops at a draft. A manual run on the same tag with `submit_draft` set to that draft's ID checks the draft against the tag and commits it. Manual runs can also repair a draft, or replace a canceled or failed submission.
 - **Release notes per locale (REL-6, LOC-11):** each listing locale's "What's new" comes from its wording catalog's notes, `release-notes/<version>.<catalog>.md`, using the identities in `build/languages.json` (en-CA reads the en-US notes, fr-CA the fr-FR notes). A catalog with no notes file, and any locale outside that list, gets the English `<version>.md`. With `"listing": {"catalog_dir": null}` (an English-only listing), every locale gets the English notes. Every file used must be 1 to 1,500 characters; one that isn't stops the run before anything is built, and nothing is truncated.
 - **Dry run:** a manual run with `dry_run` builds, bundles and checks everything, then stops before any Store call. It needs no secrets. The kit runs it on its own compile check whenever the publishing path changes.
-- **Inputs:** `store_product_id` (required), `price_tier` (empty for a free app), `gate_command` (default `npm run validate`), `pre_build` (the app's own steps before packaging), `windows_build_json`, `notes_dir` and `kit_path`. Packaging settings come from `windows-build.json`.
+- **Inputs:** `store_product_id` (required), `price_tier` (empty for a free app), `gate_command` (default `npm run validate`), `pre_build` (the app's own steps before packaging; any command that fails, including a native command that exits non-zero before a later one succeeds, stops the run), `windows_build_json`, `notes_dir` and `kit_path`. Packaging settings come from `windows-build.json`.
 - **Secrets:** the organization's `AZURE_AD_TENANT_ID`, `AZURE_AD_APPLICATION_CLIENT_ID`, `AZURE_AD_APPLICATION_SECRET` and `SELLER_ID`, passed with `secrets: inherit`.
-- **Credential reminder:** the second workflow fails 60 days before the Store secret expires. The caller passes the date from the `STORE_SECRET_EXPIRES` variable, set with `gh variable set STORE_SECRET_EXPIRES --body YYYY-MM-DD` whenever the secret is created or rotated.
+- **Credential reminder:** the second workflow fails 60 days before the Store secret expires. The caller passes the date from the organization's `STORE_SECRET_EXPIRES` variable (one date, because the apps share one secret; a repository variable of the same name would shadow it), set with `gh variable set STORE_SECRET_EXPIRES --org Dynamic-Solutions-Canada --body YYYY-MM-DD` whenever the secret is created or rotated.
 - **Same version everywhere:** the workflow uses the Store helpers from the app's kit submodule (`scripts/store/`). Keep the `uses:` tag equal to the submodule pin; the workflow fails at its first step if they differ.
 - **Paid apps:** packages are never uploaded as workflow artifacts, so a paid app's MSIX can't be downloaded from its public repo.
 

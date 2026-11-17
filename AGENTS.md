@@ -27,6 +27,7 @@ The kit owns the plumbing below and nothing else: no app's pages, settings field
 | Shared build configuration for apps and the kit | `build/`, imported by the root `Directory.Build.props`, `Directory.Build.targets` and `Directory.Packages.props` |
 | Checks and generators apps run in `validate` | `scripts/check-localization.py`, `scripts/check-listing.py`, `scripts/check-gitignore`, `scripts/generate-notices.py` |
 | Packaging and Windows build entry point for apps | `build/build-msix.ps1` (driven by each app's `windows-build.json`), `build/languages.json`, `scripts/windows-build` |
+| UI tour of an installed app, run in a VM through windows-build-tools' app-test recipe | `scripts/app-test/tour.ps1` |
 | Microsoft Store publishing for apps | `.github/workflows/store-publish.yml` and `credential-expiry.yml` (reusable), `scripts/store/`, tests and caller examples in `tests/store/`; `KIT_VERSION` in `store-publish.yml` moves with `<Version>` |
 
 ## Conventions and gotchas
