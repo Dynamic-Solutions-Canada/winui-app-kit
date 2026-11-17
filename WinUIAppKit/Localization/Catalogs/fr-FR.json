@@ -38,6 +38,6 @@
   "kit.settings.reset-desc": "Rétablit les paramètres par défaut. Les paramètres actuels sont conservés dans un fichier de sauvegarde, à côté du fichier de paramètres.",
   "kit.settings.reset-button": "Réinitialiser les paramètres",
   "kit.settings.reset-question": "Réinitialiser les paramètres ?",
-  "kit.settings.reset-body": "Le thème, la langue et les autres paramètres reviennent à leurs valeurs par défaut. « Démarrer avec Windows » ne change pas.",
+  "kit.settings.reset-body": "Le thème, la langue et les autres paramètres reviennent à leurs valeurs par défaut.",
   "kit.settings.reset-confirm": "Réinitialiser"
 }

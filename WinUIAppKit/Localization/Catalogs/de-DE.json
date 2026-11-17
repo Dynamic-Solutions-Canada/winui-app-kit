@@ -38,6 +38,6 @@
   "kit.settings.reset-desc": "Setzt Ihre Einstellungen auf die Standardwerte zurück. Die aktuellen Einstellungen bleiben als Sicherungsdatei neben der Einstellungsdatei erhalten.",
   "kit.settings.reset-button": "Einstellungen zurücksetzen",
   "kit.settings.reset-question": "Einstellungen zurücksetzen?",
-  "kit.settings.reset-body": "Design, Sprache und alle anderen Einstellungen werden auf die Standardwerte zurückgesetzt. „Mit Windows starten“ bleibt unverändert.",
+  "kit.settings.reset-body": "Design, Sprache und alle anderen Einstellungen werden auf die Standardwerte zurückgesetzt.",
   "kit.settings.reset-confirm": "Zurücksetzen"
 }

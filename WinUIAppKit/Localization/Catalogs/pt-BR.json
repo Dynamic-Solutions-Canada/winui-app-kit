@@ -38,6 +38,6 @@
   "kit.settings.reset-desc": "Volta as configurações aos valores padrão. As configurações atuais ficam guardadas em um arquivo de backup ao lado do arquivo de configurações.",
   "kit.settings.reset-button": "Redefinir configurações",
   "kit.settings.reset-question": "Redefinir configurações?",
-  "kit.settings.reset-body": "O tema, o idioma e as demais configurações voltam aos valores padrão. “Iniciar com o Windows” não muda.",
+  "kit.settings.reset-body": "O tema, o idioma e as demais configurações voltam aos valores padrão.",
   "kit.settings.reset-confirm": "Redefinir"
 }

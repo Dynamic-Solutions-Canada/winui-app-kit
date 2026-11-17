@@ -238,7 +238,7 @@ ResetRow.KeptNote = () => UiText.Get("settings.reset-kept");                    
 ResetRow.ResetCompleted += () => Frame.Navigate(typeof(SettingsPage));              // show the defaults
 ```
 
-The app's `ResetAsync` does the whole reset: `JsonSettingsStore.Reset`, which keeps the old file beside the new one, then anything it carries over, then `AppTheme.Set` and `UiText.SetOverride` with the reset values, then the save. The kit's wording says the current settings are kept as a backup next to the settings file and that Start with Windows stays as it is, which holds when the reset goes through `JsonSettingsStore.Reset`. `KeptNote` adds the app's own sentence below the kit's in the question, read when it opens so it is in the current language. A failing `ResetAsync` is logged, and `ResetCompleted` is not raised.
+The app's `ResetAsync` does the whole reset: `JsonSettingsStore.Reset`, which keeps the old file beside the new one, then anything it carries over, then `AppTheme.Set` and `UiText.SetOverride` with the reset values, then the save. The kit's wording says the current settings are kept as a backup next to the settings file, which holds when the reset goes through `JsonSettingsStore.Reset`. It says nothing about Start with Windows, which not every app has; an app with a startup entry can say it stays as it is in its `KeptNote`. `KeptNote` adds the app's own sentence below the kit's in the question, read when it opens so it is in the current language. A failing `ResetAsync` is logged, and `ResetCompleted` is not raised.
 
 ### Shared labels
 
