@@ -38,6 +38,12 @@ public sealed class TrayIcon : IDisposable
     private bool _added, _disposed, _visible = true;
 
     /// <summary>
+    /// Whether the shell identifies this icon by its GUID (the normal case) or, after the GUID was refused,
+    /// by host window and number for the rest of the session. See <see cref="Add"/>.
+    /// </summary>
+    private bool _useGuid = true;
+
+    /// <summary>
     /// Until when (Environment.TickCount64) a button-up is the tail of a double-click and is ignored.
     /// Time-limited so a tail that lands off the icon can't eat the next real click.
     /// </summary>
@@ -190,7 +196,7 @@ public sealed class TrayIcon : IDisposable
             cbSize = (uint)Marshal.SizeOf<NOTIFYICONIDENTIFIER>(),
             hWnd = _host.Hwnd,
             uID = Uid,
-            guidItem = Id,
+            guidItem = _useGuid ? Id : Guid.Empty,
         };
         if (Shell_NotifyIconGetRect(ref id, out var r) == 0 && r.Right > r.Left && r.Bottom > r.Top)
         {
@@ -245,13 +251,13 @@ public sealed class TrayIcon : IDisposable
         cbSize = (uint)Marshal.SizeOf<NOTIFYICONDATA>(),
         hWnd = _host.Hwnd,
         uID = Uid,
-        uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP | NIF_GUID,
+        uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP | (_useGuid ? NIF_GUID : 0),
         uCallbackMessage = (uint)_host.CallbackMessage,
         hIcon = _hIcon,
         szTip = _tooltip,
         szInfo = "",
         szInfoTitle = "",
-        guidItem = Id,
+        guidItem = _useGuid ? Id : Guid.Empty,
     };
 
     /// <summary>
@@ -260,13 +266,45 @@ public sealed class TrayIcon : IDisposable
     /// </summary>
     private void Add()
     {
-        // A stale registration for the same GUID (crash, previous run) makes NIM_ADD fail, so remove it first.
+        if (TryAdd())
+        {
+            return;
+        }
+
+        if (_useGuid)
+        {
+            // Windows ties an icon GUID to the path of the program that first registered it, and an
+            // MSIX update installs to a new versioned folder. Unless both programs are Authenticode-signed
+            // by the same company (a packaged exe is not), Windows 10 then refuses the GUID for good.
+            // Register by host window and number instead, for the rest of this session: the icon shows,
+            // though the user's show-or-hide choice for it starts over.
+            Delete();
+            _useGuid = false;
+            if (TryAdd())
+            {
+                Logger.Warn("Windows refused the tray icon's GUID {Id} (it was registered by an earlier install of the app); the icon was added without it for this session", Id);
+                return;
+            }
+
+            // Neither identity worked, so the tray itself isn't there yet (sign-in, Explorer restarting).
+            // Keep the GUID for the TaskbarCreated retry.
+            _useGuid = true;
+        }
+
+        _added = false;
+        Logger.Warn("Shell_NotifyIcon(NIM_ADD) and NIM_MODIFY both failed; the icon is not in the tray");
+    }
+
+    /// <summary>One attempt to register the icon under its current identity. Returns whether it is in the tray.</summary>
+    private bool TryAdd()
+    {
+        // A stale registration under the same identity (crash, previous run) makes NIM_ADD fail, so remove it first.
         Delete();
         var data = Data();
         if (Shell_NotifyIcon(NIM_ADD, ref data))
         {
             _added = true;
-            return;
+            return true;
         }
 
         // Explorer can still hold the icon despite the delete: TaskbarCreated also arrives on display and
@@ -275,20 +313,22 @@ public sealed class TrayIcon : IDisposable
         {
             _added = true;
             Logger.Debug("Shell_NotifyIcon(NIM_ADD) failed; the shell still held the icon, so it was updated in place");
-            return;
+            return true;
         }
 
-        _added = false;
-        Logger.Warn("Shell_NotifyIcon(NIM_ADD) and NIM_MODIFY both failed; the icon is not in the tray");
+        return false;
     }
 
+    /// <summary>Remove the icon from the tray under its current identity (GUID, or host window and number).</summary>
     private void Delete()
     {
         var data = new NOTIFYICONDATA
         {
             cbSize = (uint)Marshal.SizeOf<NOTIFYICONDATA>(),
-            uFlags = NIF_GUID,
-            guidItem = Id,
+            hWnd = _host.Hwnd,
+            uID = Uid,
+            uFlags = _useGuid ? NIF_GUID : 0,
+            guidItem = _useGuid ? Id : Guid.Empty,
             szTip = "",
             szInfo = "",
             szInfoTitle = "",
