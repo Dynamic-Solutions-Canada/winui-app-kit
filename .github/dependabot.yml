@@ -2,9 +2,17 @@ version: 2
 
 updates:
   - package-ecosystem: nuget
+    # The library and the portable harnesses, not "/". Xaml/CompileCheck is a WinUI MSIX app project
+    # that cannot be evaluated on Dependabot's Linux runner; once it existed under "/", Dependabot closed
+    # its Windows App SDK PR as "no longer updatable" (PR 1, 2026-11-16). That cause is a hypothesis
+    # (the job log was not available); the next 1.8 or 2.x SDK release confirms it if a PR appears.
+    # Every listed project imports build/WinUIAppKit.Packages.props, where the versions are updated.
     directories:
-      - "/"
       - "/WinUIAppKit"
+      - "/tests/WinUIAppKit.Settings.Tests"
+      - "/tests/WinUIAppKit.Startup.Tests"
+      - "/tests/WinUIAppKit.Updates.Tests"
+      - "/tests/WinUIAppKit.Localization.Tests"
     schedule:
       interval: weekly
     groups:
