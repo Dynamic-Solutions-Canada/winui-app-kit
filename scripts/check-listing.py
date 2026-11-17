@@ -8,7 +8,8 @@ It reads the `listing` block of the app's windows-build.json:
     "listing": {
       "product_name": "My App",                              required: the title in every locale (BRAND-1)
       "listing_path": "store-assets/microsoft/listings.json", default shown
-      "catalog_dir": "MyApp/Localization/Catalogs",           default: localization.catalog_dir; none = English-only
+      "catalog_dir": "MyApp/Localization/Catalogs",           default: localization.catalog_dir; none = English-only;
+                                                              null = an English-only listing for a localized interface
       "notes_dir": "release-notes",                           default shown
       "readme": "README.md",                                  default shown
       "retired_names": ["Old Name"]                           names that must not appear in listing text
@@ -202,7 +203,14 @@ def main() -> int:
         return 1
 
     listing_path = root / settings.get("listing_path", "store-assets/microsoft/listings.json")
-    catalog_setting = settings.get("catalog_dir") or (config.get("localization") or {}).get("catalog_dir")
+    # An explicit null catalog_dir keeps the listing and Store notes English only on purpose, even
+    # though the interface is localized. Absent, the listing follows the interface's catalogs.
+    interface_catalogs = (config.get("localization") or {}).get("catalog_dir")
+    english_only_listing = "catalog_dir" in settings and settings["catalog_dir"] is None
+    if english_only_listing:
+        catalog_setting = None
+    else:
+        catalog_setting = settings.get("catalog_dir") or interface_catalogs
     wording = sorted(p.stem for p in (root / catalog_setting).glob("*.json")) if catalog_setting else None
     notes_dir = root / settings.get("notes_dir", "release-notes")
     readme_path = root / settings.get("readme", "README.md")
@@ -222,7 +230,12 @@ def main() -> int:
 
     for problem in checker.problems:
         print("error:", problem, file=sys.stderr)
-    locales = "English only" if wording is None else f"{len(wording)} wording catalogs"
+    if wording is not None:
+        locales = f"{len(wording)} wording catalogs"
+    elif english_only_listing and interface_catalogs:
+        locales = "English-only listing, interface localized"
+    else:
+        locales = "English only"
     print(f"check:listing: {'failed' if checker.problems else 'passed'} ({locales}, {len(checker.problems)} problem(s))")
     return 1 if checker.problems else 0
 

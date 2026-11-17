@@ -284,7 +284,7 @@ The kit runs the same script on its own catalogs with `--kit`.
 | --- | --- |
 | `product_name` | The title every locale must carry. Required |
 | `listing_path` | Default `store-assets/microsoft/listings.json` |
-| `catalog_dir` | The app's wording catalogs. Default: `localization.catalog_dir`; none means an English-only app |
+| `catalog_dir` | The app's wording catalogs. Default: `localization.catalog_dir`; none means an English-only app. Set it to `null` to keep the listing and Store notes English only while the interface is localized |
 | `notes_dir` | Default `release-notes` |
 | `readme` | Default `README.md` |
 | `retired_names` | Earlier product names that must not appear in listing text (matched as written, so a lower-case search keyword is allowed) |
