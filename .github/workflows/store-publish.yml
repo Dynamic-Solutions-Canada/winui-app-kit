@@ -222,10 +222,11 @@ jobs:
         if: inputs.pre_build != ''
         shell: pwsh
         env:
+          KIT_PATH: ${{ inputs.kit_path }}
           PRE_BUILD: ${{ inputs.pre_build }}
         run: |
-          Invoke-Expression $env:PRE_BUILD
-          if (-not $?) { throw 'The pre_build step failed.' }
+          # Any failed command stops the run, including a native one followed by a successful command.
+          & (Join-Path $env:KIT_PATH 'scripts/store/run-pre-build.ps1') -Commands $env:PRE_BUILD
 
       - name: Build MSIX packages (x64 + ARM64, unsigned for Store)
         shell: pwsh
