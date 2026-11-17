@@ -46,6 +46,18 @@ on:
         description: "PowerShell run before packaging, for the app's own steps (tests, image generation)"
         type: string
         default: ''
+      build_secret_env_name:
+        description: 'Environment variable name the build reads the BUILD_SECRET secret from (an MSBuild property name); empty for none'
+        type: string
+        default: ''
+      inspect_draft:
+        description: 'Submission ID to report (status, pricing model, price tier, publishing mode) without changing anything'
+        type: string
+        default: ''
+      hold_publication:
+        description: 'With submit_draft: hold the release for manual publication in Partner Center, and commit only if the hold and price are kept'
+        type: boolean
+        default: false
       kit_path:
         description: "Path of the WinUI App Kit submodule in the caller's repo"
         type: string
@@ -87,6 +99,9 @@ on:
         required: false
       SELLER_ID:
         required: false
+      BUILD_SECRET:
+        description: "One secret the app's build needs, exported to pre_build and packaging as build_secret_env_name"
+        required: false
 
 permissions:
   contents: read
@@ -97,6 +112,8 @@ env:
 
 jobs:
   gate:
+    # Inspecting a submission builds and changes nothing, so it needs no gate.
+    if: inputs.inspect_draft == ''
     runs-on: ubuntu-latest
     # The app's static checks and tests; the Windows compile happens in the build job.
     timeout-minutes: 30
@@ -123,7 +140,7 @@ jobs:
 
   publish:
     needs: gate
-    if: inputs.submit_draft == ''
+    if: inputs.submit_draft == '' && inputs.inspect_draft == ''
     runs-on: windows-2025
     # Two self-contained builds, bundling, the upload and the release-note verification.
     timeout-minutes: 60
@@ -195,11 +212,13 @@ jobs:
           FAILED_DRAFT: ${{ inputs.replace_failed_draft }}
           FAILED_UPLOAD: ${{ inputs.failed_upload }}
           DRY_RUN: ${{ inputs.dry_run }}
+          HOLD_PUBLICATION: ${{ inputs.hold_publication }}
         run: |
           $selected = @(@($env:REPAIR_DRAFT, $env:CANCELED_DRAFT, $env:FAILED_DRAFT) | Where-Object { $_ })
           if ($selected.Count -gt 1) { throw 'Choose exactly one submission recovery option.' }
           if ($env:FAILED_UPLOAD -and -not $env:FAILED_DRAFT) { throw 'failed_upload requires replace_failed_draft.' }
           if ($env:DRY_RUN -eq 'true' -and $selected.Count -gt 0) { throw 'A dry run makes no Store change; it takes no recovery option.' }
+          if ($env:HOLD_PUBLICATION -eq 'true') { throw 'hold_publication applies only with submit_draft.' }
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
@@ -224,15 +243,22 @@ jobs:
         env:
           KIT_PATH: ${{ inputs.kit_path }}
           PRE_BUILD: ${{ inputs.pre_build }}
+          BUILD_SECRET: ${{ secrets.BUILD_SECRET }}
+          BUILD_SECRET_ENV_NAME: ${{ inputs.build_secret_env_name }}
         run: |
+          & (Join-Path $env:KIT_PATH 'scripts/store/use-build-secret.ps1')
           # Any failed command stops the run, including a native one followed by a successful command.
           & (Join-Path $env:KIT_PATH 'scripts/store/run-pre-build.ps1') -Commands $env:PRE_BUILD
 
       - name: Build MSIX packages (x64 + ARM64, unsigned for Store)
         shell: pwsh
         env:
+          KIT_PATH: ${{ inputs.kit_path }}
           PACKAGE_SCRIPT: ${{ steps.app.outputs.package_script }}
+          BUILD_SECRET: ${{ secrets.BUILD_SECRET }}
+          BUILD_SECRET_ENV_NAME: ${{ inputs.build_secret_env_name }}
         run: |
+          & (Join-Path $env:KIT_PATH 'scripts/store/use-build-secret.ps1')
           foreach ($plat in @('x64', 'ARM64')) {
             Write-Host "::group::Build $plat MSIX"
             & (Join-Path $env:GITHUB_WORKSPACE $env:PACKAGE_SCRIPT) -Platform $plat -NoSign
@@ -400,7 +426,7 @@ jobs:
 
   submit:
     needs: gate
-    if: inputs.submit_draft != ''
+    if: inputs.submit_draft != '' && inputs.inspect_draft == ''
     runs-on: windows-2025
     timeout-minutes: 15
     steps:
@@ -434,6 +460,7 @@ jobs:
           REPAIR_DRAFT: ${{ inputs.repair_draft }}
           REPLACE_DRAFT: ${{ inputs.replace_canceled_draft }}
           FAILED_DRAFT: ${{ inputs.replace_failed_draft }}
+          HOLD_PUBLICATION: ${{ inputs.hold_publication }}
           AZURE_AD_TENANT_ID: ${{ secrets.AZURE_AD_TENANT_ID }}
           AZURE_AD_APPLICATION_CLIENT_ID: ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}
           AZURE_AD_APPLICATION_SECRET: ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
@@ -451,4 +478,34 @@ jobs:
           if ($env:REF_TYPE -ne 'tag' -or $env:REF_NAME -ne "v$version") {
             throw "Run submit_draft on the release tag v$version (this run is on $env:REF_TYPE '$env:REF_NAME')."
           }
-          & (Join-Path $env:KIT_PATH 'scripts/store/set-store-release-notes.ps1') -AppId $env:PRODUCT -ExpectedSubmissionId $env:SUBMISSION_ID -UploadFileName "$name-$version.msixupload" -NotesPath "$env:NOTES_DIR/$version.md" -WindowsBuildJson $env:WINDOWS_BUILD_JSON -Commit
+          & (Join-Path $env:KIT_PATH 'scripts/store/set-store-release-notes.ps1') -AppId $env:PRODUCT -ExpectedSubmissionId $env:SUBMISSION_ID -UploadFileName "$name-$version.msixupload" -NotesPath "$env:NOTES_DIR/$version.md" -WindowsBuildJson $env:WINDOWS_BUILD_JSON -Commit -HoldPublication:($env:HOLD_PUBLICATION -eq 'true')
+
+  inspect:
+    if: inputs.inspect_draft != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - name: Report the submission without changing it
+        shell: pwsh
+        env:
+          KIT_PATH: ${{ inputs.kit_path }}
+          PRODUCT: ${{ inputs.store_product_id }}
+          SUBMISSION_ID: ${{ inputs.inspect_draft }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          OTHER_OPTIONS: ${{ inputs.submit_draft }}${{ inputs.repair_draft }}${{ inputs.replace_canceled_draft }}${{ inputs.replace_failed_draft }}
+          HOLD_PUBLICATION: ${{ inputs.hold_publication }}
+          AZURE_AD_TENANT_ID: ${{ secrets.AZURE_AD_TENANT_ID }}
+          AZURE_AD_APPLICATION_CLIENT_ID: ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}
+          AZURE_AD_APPLICATION_SECRET: ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
+        run: |
+          if ($env:OTHER_OPTIONS -or $env:HOLD_PUBLICATION -eq 'true' -or $env:DRY_RUN -eq 'true') {
+            throw 'inspect_draft only reads; run it without other Store options.'
+          }
+          $report = & (Join-Path $env:KIT_PATH 'scripts/store/inspect-store-draft.ps1') -AppId $env:PRODUCT -SubmissionId $env:SUBMISSION_ID
+          $report | Write-Output
+          @('## Store submission', '', '```json', ($report | Out-String).Trim(), '```') -join "`n" >> $env:GITHUB_STEP_SUMMARY

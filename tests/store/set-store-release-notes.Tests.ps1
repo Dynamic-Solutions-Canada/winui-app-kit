@@ -20,6 +20,8 @@ function Reset-Fixture {
     $global:commits = 0
     $global:storeStatus = 'Certification'
     $global:loseNotes = $null
+    $global:revertHold = $false
+    $global:changePrice = $false
 }
 function global:Invoke-RestMethod {
     param($Method, $Uri, $Headers, $Body, $ContentType)
@@ -35,6 +37,8 @@ function global:Invoke-RestMethod {
             $global:puts++
             $global:fixture = $Body | ConvertFrom-Json
             if ($global:loseNotes) { $global:fixture.listings.($global:loseNotes).baseListing.releaseNotes = 'old' }
+            if ($global:revertHold) { $global:fixture.targetPublishMode = 'Immediate' }
+            if ($global:changePrice) { $global:fixture.pricing.priceId = 'Tier1013' }
         }
         return $global:fixture
     }
@@ -44,8 +48,8 @@ function Check($condition, $name) {
     if (-not $condition) { throw $name }
     Write-Output "PASS: $name"
 }
-function Run-Notes([switch]$Commit, [string]$Notes = $notesPath, [string]$Config = $configPath) {
-    & $scriptPath -AppId 9TESTAPP0001 -UploadFileName FixtureApp-0.1.47.msixupload -NotesPath $Notes -WindowsBuildJson $Config -Commit:$Commit
+function Run-Notes([switch]$Commit, [switch]$Hold, [string]$Notes = $notesPath, [string]$Config = $configPath) {
+    & $scriptPath -AppId 9TESTAPP0001 -UploadFileName FixtureApp-0.1.47.msixupload -NotesPath $Notes -WindowsBuildJson $Config -Commit:$Commit -HoldPublication:$Hold
 }
 function Notes-Of([string]$Locale) { $global:fixture.listings.$Locale.baseListing.releaseNotes }
 
@@ -129,3 +133,32 @@ Reset-Fixture
 $global:storeStatus = 'CommitFailed'
 try { Run-Notes -Commit; throw 'Expected rejection' } catch { Check ($_.Exception.Message -like '*Store submission failed*') 'ingestion failure reported' }
 
+# Holding the release for manual publication (hold_publication).
+Reset-Fixture
+Run-Notes -Commit
+Check ($global:fixture.targetPublishMode -eq 'Immediate') 'without a hold the publishing mode is left as it was'
+Reset-Fixture
+Run-Notes -Commit -Hold
+Check ($global:fixture.targetPublishMode -eq 'Manual' -and $global:commits -eq 1) 'a hold sets manual publication, then commits once'
+Check ($global:fixture.pricing.priceId -eq 'Tier1012' -and $global:fixture.pricing.marketSpecificPricings.CA -eq 'keep') 'a hold keeps the price'
+Reset-Fixture
+$global:revertHold = $true
+try { Run-Notes -Commit -Hold; throw 'Expected rejection' } catch { Check ($_.Exception.Message -like '*hold was not kept*') 'a hold the Store drops stops the run' }
+Check ($global:commits -eq 0) 'a dropped hold is never committed'
+Reset-Fixture
+$global:changePrice = $true
+try { Run-Notes -Commit -Hold; throw 'Expected rejection' } catch { Check ($_.Exception.Message -like '*price changed from Tier1012 to Tier1013*') 'a changed price stops a held run' }
+Check ($global:commits -eq 0) 'a changed price is never committed'
+
+# Running again after a held commit only reads the submission.
+Reset-Fixture
+$global:fixture.status = 'Certification'
+$global:fixture.targetPublishMode = 'Manual'
+$global:fixture.applicationPackages[0].fileStatus = 'Uploaded'
+$output = Run-Notes -Commit -Hold | Out-String
+Check ($global:puts -eq 0 -and $global:commits -eq 0) 'a re-run after a held commit changes and commits nothing'
+Check ($output -like '*already committed*' -and $output -like '*Held for manual publication*') 'a re-run reports the status and the hold'
+Reset-Fixture
+$global:fixture.status = 'Certification'
+try { Run-Notes -Commit -Hold; throw 'Expected rejection' } catch { Check ($_.Exception.Message -like '*not held for manual publication*') 'a committed submission without a hold is reported, not changed' }
+Check ($global:puts -eq 0 -and $global:commits -eq 0) 'an unheld committed submission is left alone'

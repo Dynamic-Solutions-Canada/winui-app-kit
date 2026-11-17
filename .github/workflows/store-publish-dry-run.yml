@@ -36,3 +36,10 @@ jobs:
       kit_path: '.'
       notes_dir: release-notes
       dry_run: true
+      # Proves the build secret path: a fixture value (not a secret) must reach pre_build and packaging.
+      build_secret_env_name: KitDryRunBuildSecret
+      pre_build: |
+        if ($env:KitDryRunBuildSecret -ne 'dry-run-fixture-not-a-secret') { throw 'BUILD_SECRET did not reach pre_build as KitDryRunBuildSecret.' }
+        Write-Output 'BUILD_SECRET reached pre_build as KitDryRunBuildSecret.'
+    secrets:
+      BUILD_SECRET: dry-run-fixture-not-a-secret

@@ -38,6 +38,14 @@ on:
         description: 'Exact upload filename in the failed submission being replaced'
         type: string
         default: ''
+      hold_publication:
+        description: 'With submit_draft: hold the release for manual publication in Partner Center'
+        type: boolean
+        default: false
+      inspect_draft:
+        description: 'Submission ID to report (status, pricing, publishing mode) without changing anything'
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -66,4 +74,15 @@ jobs:
       submit_draft: ${{ inputs.submit_draft || '' }}
       replace_failed_draft: ${{ inputs.replace_failed_draft || '' }}
       failed_upload: ${{ inputs.failed_upload || '' }}
+      hold_publication: ${{ github.event_name == 'workflow_dispatch' && inputs.hold_publication }}
+      inspect_draft: ${{ inputs.inspect_draft || '' }}
+      # An app whose build compiles in one secret names the variable its build reads, and passes the
+      # secrets explicitly (not inherit) with BUILD_SECRET mapped from its own secret:
+      # build_secret_env_name: 'MyBuildProperty'
+    # secrets:
+    #   AZURE_AD_TENANT_ID: ${{ secrets.AZURE_AD_TENANT_ID }}
+    #   AZURE_AD_APPLICATION_CLIENT_ID: ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}
+    #   AZURE_AD_APPLICATION_SECRET: ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
+    #   SELLER_ID: ${{ secrets.SELLER_ID }}
+    #   BUILD_SECRET: ${{ secrets.MY_BUILD_SECRET }}
     secrets: inherit
