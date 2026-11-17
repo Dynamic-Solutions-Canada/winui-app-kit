@@ -256,7 +256,7 @@ The full list, with every translation, is in `WinUIAppKit/Localization/Catalogs/
 | --- | --- |
 | `catalog_dir` | The app's `<catalog>.json` files. Required |
 | `source_dirs` | Folders searched for keys. Default: the project's folder |
-| `english_keys` | `true` when the English text is the key, so each en-US value must equal its key |
+| `english_keys` | `true` when the English text is the key, so each en-US value must equal its key. Keys the manifest uses (`ms-resource:Resources/<Key>`) are exempt and count as used; see [Packaging](#packaging) |
 | `extra_key_patterns` | Regexes with one group, for keys the code builds from constants |
 | `unused_ok` | Key globs used by text matching rather than as literals |
 
@@ -341,6 +341,7 @@ Every package in the graph is listed with its version, licence, copyright and pr
 ```
 
 - **Steps:** it publishes the app self-contained, plus any `companions`, assembles the layout with the compiled XAML, stamps the manifest's version and identity, builds one `resources.pri` for every declared language, checks the manifest strings resolve in each, then packs and signs.
+- **Manifest strings:** each `ms-resource:Resources/<Key>` in the manifest is read from the `manifest_strings` catalogs. `check:l10n` counts those keys as used and exempts them from `english_keys`, since the manifest needs identifier keys, so an English-keyed app can keep `AppDescription` beside its English-text keys.
 - **Languages:** the regional identities (en-CA, fr-CA) reuse the US English and French catalogs, as listed in `build/languages.json`, the family's one language list (LOC-2).
 - **Signing:**
   - Signing material is only ever a parameter. There is no fallback certificate, no generated certificate and no written password, and `-NoSign` builds the unsigned Store upload.

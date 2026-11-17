@@ -19,7 +19,8 @@ Fails when:
   - a catalog is missing a key that en-US has, has an extra one, or has an empty value;
   - a translation's {{placeholders}} differ from the en-US text;
   - any text contains an em dash (house writing rule);
-  - code or XAML uses a key no catalog defines, or a catalog key is never used;
+  - code or XAML uses a key no catalog defines, or a catalog key is never used. Keys the manifest uses
+    as ms-resource:Resources/<Key> count as used, and are exempt from english_keys;
   - an app catalog defines a `kit.` key (the kit owns those, LOC-7), or app code uses a `kit.` key
     the kit does not define;
   - the manifest's <Resource Language> list, or the catalog files on disk, differ from the family's
@@ -194,8 +195,14 @@ def check_app(root: Path) -> list[str]:
         expected_identities = identities
         if set(catalogs) != family_catalogs:
             errors.append(f"catalog files {sorted(catalogs)} differ from the family's catalogs {sorted(family_catalogs)}")
+    # Keys the manifest uses as ms-resource:Resources/<Key>, the same match build-msix.ps1 makes for
+    # manifest_strings. They count as used, and are exempt from english_keys: the syntax needs an
+    # identifier, so they can never be English text. A missing one fails packaging, not this check.
+    manifest_keys: set[str] = set()
     if manifest and manifest.exists():
-        declared = re.findall(r'<Resource\s+Language="([^"]+)"', manifest.read_text(encoding="utf-8-sig"))
+        manifest_text = manifest.read_text(encoding="utf-8-sig")
+        manifest_keys = set(re.findall(r"ms-resource:Resources/(\w+)", manifest_text))
+        declared = re.findall(r'<Resource\s+Language="([^"]+)"', manifest_text)
         if sorted(declared) != sorted(expected_identities):
             errors.append(f"manifest languages {declared} differ from {expected_identities}")
 
@@ -204,7 +211,7 @@ def check_app(root: Path) -> list[str]:
         errors.append(f"app en-US: {key} is a kit key; the kit owns kit. labels (LOC-7), remove it")
     if settings.get("english_keys"):
         for key, text in english.items():
-            if key != text:
+            if key != text and key not in manifest_keys:
                 errors.append(f"app en-US: {key!r} has different text; with english_keys the text is the key")
 
     # Keys used in code: app keys must exist in the app's catalog, kit keys in the kit's.
@@ -220,7 +227,7 @@ def check_app(root: Path) -> list[str]:
             errors.append(f"code uses undefined key {key!r}")
 
     unused_ok = settings.get("unused_ok", [])
-    for key in sorted(english.keys() - certain - possible):
+    for key in sorted(english.keys() - certain - possible - manifest_keys):
         if key.startswith(KIT_PREFIX):
             continue   # already reported above as a kit key the app must not define
         if not any(fnmatch.fnmatchcase(key, glob) for glob in unused_ok):
