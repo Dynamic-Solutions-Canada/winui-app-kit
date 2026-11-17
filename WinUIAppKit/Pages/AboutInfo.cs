@@ -13,8 +13,18 @@ public sealed class AboutInfo
     /// <summary>The product name (BRAND-1), shown as is: product names are not translated.</summary>
     public required string ProductName { get; init; }
 
-    /// <summary>The app's own catalog key for its one-line description, matching the store tagline.</summary>
-    public required string DescriptionKey { get; init; }
+    /// <summary>
+    /// The app's own catalog key for its one-line description, matching the store tagline, for an app
+    /// whose text is in <c>UiText</c> catalogs. Set this or <see cref="Description"/>, not both.
+    /// </summary>
+    public string? DescriptionKey { get; init; }
+
+    /// <summary>
+    /// The one-line description from the app's own localization, for an app whose text is not in
+    /// <c>UiText</c> catalogs (.resw, LOC-6). Read whenever the page draws its text, so it follows a
+    /// language change. Set this or <see cref="DescriptionKey"/>, not both.
+    /// </summary>
+    public Func<string>? Description { get; init; }
 
     /// <summary>Full path of the app's 256 px PNG icon (UI-1); XAML would decode an .ico at its 16 px frame.</summary>
     public required string IconPngPath { get; init; }
@@ -42,6 +52,18 @@ public sealed class AboutInfo
     /// created when the page opens, so it can use the current language.
     /// </summary>
     public IReadOnlyList<Func<UIElement>> ExtraCards { get; init; } = [];
+
+    /// <summary>The description in the current language, from <see cref="Description"/> or <see cref="DescriptionKey"/>.</summary>
+    /// <exception cref="InvalidOperationException">Both or neither are set.</exception>
+    public string ResolveDescription()
+    {
+        if ((Description is null) == (DescriptionKey is null))
+        {
+            throw new InvalidOperationException("Set exactly one of AboutInfo.Description and AboutInfo.DescriptionKey.");
+        }
+
+        return Description is not null ? Description() : Localization.UiText.Get(DescriptionKey!);
+    }
 
     /// <summary>
     /// The standard links for an app in a public GitHub repository: source code, support (new issue,

@@ -79,7 +79,7 @@ public sealed partial class AboutPage : Page
         VersionText.Text = UiText.Format(
             AppEnvironment.IsPackaged ? "kit.about.version" : "kit.about.version-unpackaged",
             ("version", AppEnvironment.Version));
-        DescriptionText.Text = UiText.Get(_info.DescriptionKey);
+        DescriptionText.Text = _info.ResolveDescription();
         ShowUpdateStatus();
     }
 
