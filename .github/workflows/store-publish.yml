@@ -9,6 +9,9 @@ name: Publish to Microsoft Store
 # summary. Manual full runs also default to draft-only review. Never expose MSIX files as artifacts:
 # paid apps' packages must not be downloadable.
 #
+# Every run first runs the app's own gate (gate_command, default `npm run validate`), and nothing
+# builds, uploads or submits unless it passes (CI-4), so callers need no gate job of their own.
+#
 # dry_run builds, bundles and checks everything, then stops before installing the Store CLI and
 # before any token request or Store API call. No secret is needed for it.
 #
@@ -35,6 +38,10 @@ on:
         description: 'Folder holding release notes as <version>.md'
         type: string
         default: 'release-notes'
+      gate_command:
+        description: "The app's gate, run on Linux before anything is built or sent to the Store"
+        type: string
+        default: 'npm run validate'
       pre_build:
         description: "PowerShell run before packaging, for the app's own steps (tests, image generation)"
         type: string
@@ -89,7 +96,33 @@ env:
   KIT_VERSION: '1.8.0'
 
 jobs:
+  gate:
+    runs-on: ubuntu-latest
+    # The app's static checks and tests; the Windows compile happens in the build job.
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - name: Set up .NET from global.json
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Run the gate
+        env:
+          GATE_COMMAND: ${{ inputs.gate_command }}
+        run: |
+          if [ -z "${GATE_COMMAND}" ]; then
+            echo "::error::gate_command is empty; Store publishing always runs the app's gate (CI-4)."
+            exit 1
+          fi
+          bash -c "${GATE_COMMAND}"
+
   publish:
+    needs: gate
     if: inputs.submit_draft == ''
     runs-on: windows-2025
     # Two self-contained builds, bundling, the upload and the release-note verification.
@@ -361,6 +394,7 @@ jobs:
           & (Join-Path $env:KIT_PATH 'scripts/store/repair-store-draft.ps1') -AppId $env:PRODUCT -SubmissionId $env:SUBMISSION_ID -PriceId $env:TIER -UploadPath (Join-Path (Join-Path $env:GITHUB_WORKSPACE $env:OUTPUT) $env:UPLOAD)
 
   submit:
+    needs: gate
     if: inputs.submit_draft != ''
     runs-on: windows-2025
     timeout-minutes: 15

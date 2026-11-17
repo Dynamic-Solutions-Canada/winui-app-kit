@@ -1,5 +1,6 @@
 # Caller example: copy to .github/workflows/store-publish.yml in an app, then set store_product_id,
-# price_tier and pre_build. Keep the `uses:` tag equal to the app's external/winui-app-kit pin; the
+# price_tier and pre_build. The reusable workflow runs the app's gate (npm run validate) before
+# anything else, so the app needs no gate job of its own here. Keep the `uses:` tag equal to the app's external/winui-app-kit pin; the
 # reusable workflow stops at its first step if they differ.
 name: Publish to Microsoft Store
 
@@ -48,13 +49,15 @@ concurrency:
 
 jobs:
   publish:
-    uses: Dynamic-Solutions-Canada/winui-app-kit/.github/workflows/store-publish.yml@v1.8.0
+    uses: Dynamic-Solutions-Canada/winui-app-kit/.github/workflows/store-publish.yml@v1.9.0
     with:
       store_product_id: 9ABCDEF12345
       # A paid app's Partner Center tier, such as Tier1012; leave empty for a free app.
       price_tier: ''
       # The app's own steps before packaging, if any, for example: & ./MyAppMSIX/generate-msix-images.ps1
       pre_build: ''
+      # The gate run first, on Linux; this is the default.
+      gate_command: 'npm run validate'
       # A tag run is always a draft (REL-7); these only matter for manual runs.
       dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
       no_commit: ${{ github.event_name == 'push' || inputs.no_commit }}
