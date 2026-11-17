@@ -1,0 +1,5 @@
+{
+  "common.save": "保存",
+  "common.files.one": "{{count}} 個のファイル",
+  "common.files.other": "{{count}} 個のファイル"
+}

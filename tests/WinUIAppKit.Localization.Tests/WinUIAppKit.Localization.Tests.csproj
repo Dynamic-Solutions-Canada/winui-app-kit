@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Portable harness for the interface text core (TEST-2): catalog merging, lookup, placeholders and
+    plurals. It links the dependency-free core files instead of referencing the WinUI library, so it
+    runs on Linux, the way a Native AOT companion links them.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="../../WinUIAppKit/Localization/TextCatalogs.cs" Link="Linked/TextCatalogs.cs" />
+    <Compile Include="../../WinUIAppKit/Localization/SupportedLanguages.cs" Link="Linked/SupportedLanguages.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Area files embedded the way an app embeds them: the folder separator stays in the name. -->
+    <EmbeddedResource Include="Fixtures/Areas/**/*.json" LogicalName="Fixture.Areas.%(RecursiveDir)%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Fixtures/Flat/*.json" LogicalName="Fixture.Flat.%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>

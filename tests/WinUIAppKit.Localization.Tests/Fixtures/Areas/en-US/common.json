@@ -1,0 +1,6 @@
+{
+  "common.save": "Save",
+  "common.files.one": "{{count}} file",
+  "common.files.other": "{{count}} files",
+  "common.only-english": "Only in English"
+}

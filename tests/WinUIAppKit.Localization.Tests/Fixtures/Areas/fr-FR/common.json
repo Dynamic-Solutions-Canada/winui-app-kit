@@ -1,0 +1,5 @@
+{
+  "common.save": "Enregistrer",
+  "common.files.one": "{{count}} fichier",
+  "common.files.other": "{{count}} fichiers"
+}

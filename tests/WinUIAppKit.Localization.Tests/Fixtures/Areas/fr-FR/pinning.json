@@ -1,0 +1,5 @@
+{
+  "pinning.pin": "Épingler {{name}}",
+  "pinning.left.one": "{{count}} épingle restante dans {{folder}}",
+  "pinning.left.other": "{{count}} épingles restantes dans {{folder}}"
+}
