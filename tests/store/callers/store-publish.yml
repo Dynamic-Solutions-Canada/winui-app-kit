@@ -64,7 +64,8 @@ jobs:
       price_tier: ''
       # The app's own steps before packaging, if any, for example: & ./MyAppMSIX/generate-msix-images.ps1
       pre_build: ''
-      # The gate run first, on Linux; this is the default.
+      # The gate run first, on a clean Linux runner with only .NET set up; chain any install the
+      # app's validate needs in front of it, for example: npm ci --prefix web && npm run validate
       gate_command: 'npm run validate'
       # A tag run is always a draft (REL-7); these only matter for manual runs.
       dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}

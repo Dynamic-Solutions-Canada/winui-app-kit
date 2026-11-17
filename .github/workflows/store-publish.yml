@@ -39,7 +39,7 @@ on:
         type: string
         default: 'release-notes'
       gate_command:
-        description: "The app's gate, run on Linux before anything is built or sent to the Store"
+        description: "The app's gate, run on a clean Linux runner (only .NET set up) before anything is built or sent to the Store; include any install it needs"
         type: string
         default: 'npm run validate'
       pre_build:
@@ -213,12 +213,17 @@ jobs:
           FAILED_UPLOAD: ${{ inputs.failed_upload }}
           DRY_RUN: ${{ inputs.dry_run }}
           HOLD_PUBLICATION: ${{ inputs.hold_publication }}
+          NO_COMMIT: ${{ github.event_name == 'push' || inputs.no_commit }}
         run: |
           $selected = @(@($env:REPAIR_DRAFT, $env:CANCELED_DRAFT, $env:FAILED_DRAFT) | Where-Object { $_ })
           if ($selected.Count -gt 1) { throw 'Choose exactly one submission recovery option.' }
           if ($env:FAILED_UPLOAD -and -not $env:FAILED_DRAFT) { throw 'failed_upload requires replace_failed_draft.' }
           if ($env:DRY_RUN -eq 'true' -and $selected.Count -gt 0) { throw 'A dry run makes no Store change; it takes no recovery option.' }
-          if ($env:HOLD_PUBLICATION -eq 'true') { throw 'hold_publication applies only with submit_draft.' }
+          # The hold is applied by submit_draft. A run that stops at a draft ignores it, but one that would
+          # commit here would go out without the hold the caller asked for, so that one stops.
+          if ($env:HOLD_PUBLICATION -eq 'true' -and $env:NO_COMMIT -eq 'false' -and $env:DRY_RUN -ne 'true') {
+            throw 'hold_publication is applied by submit_draft; this run would commit without it. Stage a draft (no_commit), then submit it with submit_draft.'
+          }
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
@@ -498,12 +503,11 @@ jobs:
           SUBMISSION_ID: ${{ inputs.inspect_draft }}
           DRY_RUN: ${{ inputs.dry_run }}
           OTHER_OPTIONS: ${{ inputs.submit_draft }}${{ inputs.repair_draft }}${{ inputs.replace_canceled_draft }}${{ inputs.replace_failed_draft }}
-          HOLD_PUBLICATION: ${{ inputs.hold_publication }}
           AZURE_AD_TENANT_ID: ${{ secrets.AZURE_AD_TENANT_ID }}
           AZURE_AD_APPLICATION_CLIENT_ID: ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}
           AZURE_AD_APPLICATION_SECRET: ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
         run: |
-          if ($env:OTHER_OPTIONS -or $env:HOLD_PUBLICATION -eq 'true' -or $env:DRY_RUN -eq 'true') {
+          if ($env:OTHER_OPTIONS -or $env:DRY_RUN -eq 'true') {
             throw 'inspect_draft only reads; run it without other Store options.'
           }
           $report = & (Join-Path $env:KIT_PATH 'scripts/store/inspect-store-draft.ps1') -AppId $env:PRODUCT -SubmissionId $env:SUBMISSION_ID
