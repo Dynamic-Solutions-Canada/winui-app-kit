@@ -23,6 +23,10 @@ updates:
       # Microsoft.WindowsAppRuntime.1.8; moving off it means updating each app's manifest dependency.
       - dependency-name: Microsoft.WindowsAppSDK
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      # Held on the .NET 10 line with the rest of the family; 11.x belongs to the next .NET major
+      # (see build/WinUIAppKit.Packages.props).
+      - dependency-name: System.Security.Cryptography.ProtectedData
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: "/"
