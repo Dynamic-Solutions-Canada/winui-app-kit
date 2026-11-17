@@ -31,5 +31,7 @@
   "kit.settings.off": "Désactivé",
   "kit.settings.startup-user-off": "Désactivé dans les Paramètres Windows (Applications > Démarrage). Réactivez-le à cet endroit.",
   "kit.settings.startup-policy-off": "Désactivé par votre organisation.",
-  "kit.settings.startup-policy-on": "Activé par votre organisation."
+  "kit.settings.startup-policy-on": "Activé par votre organisation.",
+  "kit.settings.reset-title": "Les paramètres ont été réinitialisés",
+  "kit.settings.reset-notice": "Impossible de lire vos paramètres, les valeurs par défaut sont donc utilisées. L’ancien fichier a été conservé sous le nom {{file}}."
 }

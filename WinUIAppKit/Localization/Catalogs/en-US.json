@@ -31,5 +31,7 @@
   "kit.settings.off": "Off",
   "kit.settings.startup-user-off": "Turned off in Windows Settings (Apps > Startup). Turn it back on there.",
   "kit.settings.startup-policy-off": "Turned off by your organization.",
-  "kit.settings.startup-policy-on": "Turned on by your organization."
+  "kit.settings.startup-policy-on": "Turned on by your organization.",
+  "kit.settings.reset-title": "Settings were reset",
+  "kit.settings.reset-notice": "Your settings couldn’t be read, so the defaults are in use. The old file was kept as {{file}}."
 }

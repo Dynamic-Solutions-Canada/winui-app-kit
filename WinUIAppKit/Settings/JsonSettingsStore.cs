@@ -334,4 +334,13 @@ public enum SettingsLoadOutcome
 /// <param name="FileSchemaVersion">The schema version the file had before loading, or null when there was no readable version.</param>
 /// <param name="BackupPath">The copy kept of the previous file (migration, newer version, unreadable or reset), or null.</param>
 public sealed record SettingsLoadResult<T>(T Settings, SettingsLoadOutcome Outcome, int? FileSchemaVersion, string? BackupPath)
-    where T : class;
+    where T : class
+{
+    /// <summary>
+    /// True when the user must be told their settings were reset (CONF-2, UI-15): only after an
+    /// <see cref="SettingsLoadOutcome.Unreadable"/> file, never for first run, a reset the user asked for
+    /// or a migration. The store wrote defaults, so the next launch loads normally and this is true only
+    /// once: open the settings window on this launch and show <c>SettingsResetNotice</c> there.
+    /// </summary>
+    public bool NeedsResetNotice => Outcome == SettingsLoadOutcome.Unreadable;
+}

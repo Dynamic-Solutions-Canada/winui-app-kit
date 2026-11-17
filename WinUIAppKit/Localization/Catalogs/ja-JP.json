@@ -31,5 +31,7 @@
   "kit.settings.off": "オフ",
   "kit.settings.startup-user-off": "Windows の設定（アプリ > スタートアップ）でオフになっています。そこで再度オンにしてください。",
   "kit.settings.startup-policy-off": "組織によってオフにされています。",
-  "kit.settings.startup-policy-on": "組織によってオンにされています。"
+  "kit.settings.startup-policy-on": "組織によってオンにされています。",
+  "kit.settings.reset-title": "設定がリセットされました",
+  "kit.settings.reset-notice": "設定を読み取れなかったため、既定値を使用しています。以前のファイルは {{file}} として保存されています。"
 }

@@ -31,5 +31,7 @@
   "kit.settings.off": "关",
   "kit.settings.startup-user-off": "已在 Windows 设置（应用 > 启动）中关闭。请在那里重新打开。",
   "kit.settings.startup-policy-off": "已被你的组织关闭。",
-  "kit.settings.startup-policy-on": "已被你的组织打开。"
+  "kit.settings.startup-policy-on": "已被你的组织打开。",
+  "kit.settings.reset-title": "设置已重置",
+  "kit.settings.reset-notice": "无法读取你的设置，因此正在使用默认值。旧文件已保留为 {{file}}。"
 }

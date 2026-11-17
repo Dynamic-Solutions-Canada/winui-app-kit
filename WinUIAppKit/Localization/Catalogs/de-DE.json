@@ -31,5 +31,7 @@
   "kit.settings.off": "Aus",
   "kit.settings.startup-user-off": "In den Windows-Einstellungen deaktiviert (Apps > Autostart). Dort wieder aktivieren.",
   "kit.settings.startup-policy-off": "Von deiner Organisation deaktiviert.",
-  "kit.settings.startup-policy-on": "Von deiner Organisation aktiviert."
+  "kit.settings.startup-policy-on": "Von deiner Organisation aktiviert.",
+  "kit.settings.reset-title": "Einstellungen wurden zurückgesetzt",
+  "kit.settings.reset-notice": "Deine Einstellungen konnten nicht gelesen werden, daher werden die Standardwerte verwendet. Die alte Datei wurde als {{file}} aufbewahrt."
 }

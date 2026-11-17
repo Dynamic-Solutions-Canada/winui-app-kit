@@ -143,6 +143,26 @@ Scenario("unreadable file", folder =>
     Check(store.Load().Outcome == SettingsLoadOutcome.Loaded, "unreadable: defaults were written, so the user is told only once");
 });
 
+Scenario("reset notice only after an unreadable file", folder =>
+{
+    var store = Versioned(folder);
+    Check(!store.Load().NeedsResetNotice, "notice: not on first run");
+    Check(!store.Load().NeedsResetNotice, "notice: not on a normal load");
+
+    File.WriteAllText(store.FilePath, """{ "OldName": "x" }""");
+    Check(!store.Load().NeedsResetNotice, "notice: not after a migration");
+
+    File.WriteAllText(store.FilePath, """{ "SchemaVersion": 9 }""");
+    Check(!store.Load().NeedsResetNotice, "notice: not for a file from a newer version");
+
+    File.WriteAllText(store.FilePath, "{ broken");
+    var unreadable = store.Load();
+    Check(unreadable.NeedsResetNotice, "notice: shown after an unreadable file");
+    Check(!store.Load().NeedsResetNotice, "notice: only once, because defaults were written");
+
+    Check(!store.Reset().NeedsResetNotice, "notice: not for a reset the user asked for");
+});
+
 Scenario("wrong JSON shapes are unreadable", folder =>
 {
     var store = Versioned(folder);

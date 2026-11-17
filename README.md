@@ -233,6 +233,7 @@ The shell, the About page and the settings every app has use labels the kit owns
 | `kit.settings.startup-user-off`, `kit.settings.startup-policy-off`, `kit.settings.startup-policy-on` | Why the startup switch is disabled |
 | `kit.settings.language` | Language |
 | `kit.dialog.cancel` | Cancel |
+| `kit.settings.reset-title`, `kit.settings.reset-notice` | The "settings were reset" notice |
 | `kit.nav.about`, `kit.nav.other-apps` | About, Our other apps |
 | `kit.about.*` | The About page's labels and update messages |
 
@@ -414,6 +415,17 @@ switch (result.Outcome)
 | `Migrated` | The file is older | `settings.json.v<old>.bak`, before the first step runs |
 | `NewerVersion` | A newer app version wrote it | `settings.json.v<its version>.bak`; the file is loaded as far as this version understands it and is not rewritten until the next save |
 | `Unreadable` | Not JSON, the wrong shape, or a migration step threw | `settings.json.bad`; defaults are written |
+
+**Telling the user (CONF-2, UI-15):** when `result.NeedsResetNotice` is true (only after an unreadable file), open the settings window on this launch, as on first run, and put the notice at the top of its page:
+
+```csharp
+if (App.SettingsResult.NeedsResetNotice)
+{
+    PageContent.Children.Insert(0, SettingsResetNotice.Create(App.SettingsResult.BackupPath));
+}
+```
+
+The store has already written defaults, so the next launch loads normally and the notice can't come back. A silently started app that waits for the user to open Settings would lose it. The notice is a closable warning bar with the kit's translated text, naming only the backup file, never its folder.
 
 `Reset()` is the "Reset settings" action (CONF-4). It renames the file to `settings.json.<UTC time>.reset`, writes defaults and returns `Reset`. It touches nothing else: the startup task and stored credentials stay as they are.
 

@@ -54,6 +54,9 @@ public partial class App : Application
         rows.Children.Add(theme);
         rows.Children.Add(language);
 
+        // The reset notice, as a settings page shows it after an unreadable settings file.
+        rows.Children.Insert(0, Settings.SettingsResetNotice.Create("C:\\data\\settings.json.bad"));
+
         shell.Select(SettingsShell.AboutTag);
         window.Activate();
     }

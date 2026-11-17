@@ -31,5 +31,7 @@
   "kit.settings.off": "Desativado",
   "kit.settings.startup-user-off": "Desativado nas Configurações do Windows (Aplicativos > Inicialização). Ative novamente por lá.",
   "kit.settings.startup-policy-off": "Desativado pela sua organização.",
-  "kit.settings.startup-policy-on": "Ativado pela sua organização."
+  "kit.settings.startup-policy-on": "Ativado pela sua organização.",
+  "kit.settings.reset-title": "As configurações foram redefinidas",
+  "kit.settings.reset-notice": "Não foi possível ler suas configurações, então os padrões estão em uso. O arquivo antigo foi mantido como {{file}}."
 }
