@@ -29,6 +29,19 @@ public static class SingleInstance
     }
 
     /// <summary>
+    /// End this launch after <see cref="TryClaim"/> returned false (and after any
+    /// <see cref="SignalRunningInstance"/> or <see cref="BringRunningInstanceForward"/>), instead of calling
+    /// <see cref="Environment.Exit(int)"/> on the UI thread. The process is ended from a background thread,
+    /// which Windows App SDK 2 on Windows 10 does not answer with a CoreMessaging fail-fast as it does a
+    /// UI-thread exit, and the calling thread is held so nothing after this call runs. Never returns.
+    /// </summary>
+    public static void ExitThisLaunch()
+    {
+        new Thread(() => Environment.Exit(0)) { IsBackground = true, Name = "Exit second launch" }.Start();
+        Thread.Sleep(Timeout.Infinite);
+    }
+
+    /// <summary>
     /// Ask the running copy to do something (usually "show yourself") by posting
     /// <paramref name="messageName"/> to its host window, found by <paramref name="hostWindowTitle"/>.
     /// </summary>

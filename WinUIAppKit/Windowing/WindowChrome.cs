@@ -71,7 +71,14 @@ public static class WindowChrome
         SetMinimumSize(window, minWidthDip, minHeightDip);
         RestorePlacement(window, saved, defaultWidthDip, defaultHeightDip);
         Theming.AppTheme.Track(window);
+
+        // HostWindow.Exit closes these before WinUI's shutdown, which stalls while one is open.
+        OpenSettingsWindows.Add(window);
+        window.Closed += (_, _) => OpenSettingsWindows.Remove(window);
     }
+
+    /// <summary>Settings windows set up by <see cref="SetUpSettingsWindow"/> and not yet closed, for an orderly exit.</summary>
+    internal static readonly List<Window> OpenSettingsWindows = [];
 
     /// <summary>
     /// Keep a window at least <paramref name="widthDip"/> × <paramref name="heightDip"/> DIPs. The
