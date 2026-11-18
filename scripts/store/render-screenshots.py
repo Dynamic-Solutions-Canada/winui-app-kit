@@ -12,7 +12,7 @@ Reads store-assets/manifest.json:
         { "file": "screenshots/00-home-dark.png",          output, under store-assets/microsoft/
           "source": "raw/microsoft/00-home-dark.png",      the desktop capture, under store-assets/
           "theme": "dark",                                 always "dark" (LIST-8)
-          "crop": "window",                                optional: "window" (default) or "tray"
+          "crop": "window",                                optional: "window" (default), "tray" or "bottom"
           "caption": "...", "alt": "..." }                 the en-US caption, and alt text
       ]
     }
@@ -30,8 +30,10 @@ and the app's window focused and centred on the work area. Beside each <name>.pn
 Crop: nothing is composited, shaved or scaled. "window" takes an output-size rectangle centred on the
 window, moved only as far as needed to stay inside the work area (so the taskbar stays out); the window
 and a margin for its shadow must fit, or the crop fails. "tray" takes the bottom-right output-size
-rectangle of the screen, taskbar included, for a tray flyout. The result is written as 8-bit RGB without
-alpha and with unfiltered rows. ImageMagick (cropping only) runs in a disposable container with a memory cap, so the host needs only Docker;
+rectangle of the screen, taskbar included, for a tray flyout. "bottom" takes the bottom strip of the
+screen, taskbar included, centred on the window and moved only as far as needed to stay on the screen,
+for a popup placed above the taskbar; the window and its margin must fit it, as for "window". The
+result is written as 8-bit RGB without alpha and with unfiltered rows. ImageMagick (cropping only) runs in a disposable container with a memory cap, so the host needs only Docker;
 files stay owned by the caller.
 
 Check (no Docker) fails when:
@@ -62,7 +64,7 @@ DEFAULT_SIZE = "1366x768"
 MARGIN = 24  # desktop kept around the window frame on every side, for its shadow
 WALLPAPER = "img19.jpg"
 MAX_SCREENSHOTS = 10
-CROPS = ("window", "tray")
+CROPS = ("window", "tray", "bottom")
 # Mean luma (0-255, Rec. 709) of the window in a screenshot must be below this, so an app set to its own
 # light theme fails even on a dark Windows. Calibrated on little-launcher's real dark captures (windows
 # and tray flyouts measured 40-58) and the same windows inverted to light (197-215).
@@ -140,7 +142,8 @@ def crop_box(sidecar: dict, crop: str, size: tuple[int, int]) -> tuple[int, int]
     """
     The crop's top-left corner for an output of `size`, or a message saying why it can't be taken.
     "window" centres on the window and moves only as far as needed to stay inside the work area;
-    "tray" is the bottom-right corner of the screen.
+    "tray" is the bottom-right corner of the screen; "bottom" is the bottom strip of the screen, taskbar
+    included, centred on the window and moved only as far as needed to stay on the screen.
     """
     out_width, out_height = size
     screen, window, work = sidecar["screen"], sidecar["window"], sidecar["workArea"]
@@ -149,6 +152,9 @@ def crop_box(sidecar: dict, crop: str, size: tuple[int, int]) -> tuple[int, int]
         if screen["width"] < out_width or screen["height"] < out_height:
             return f"the screen ({screen['width']} x {screen['height']}) is smaller than {out_width} x {out_height}"
         return screen["width"] - out_width, screen["height"] - out_height
+
+    if crop == "bottom":
+        return bottom_crop(screen, window, size)
 
     if work["width"] < out_width or work["height"] < out_height:
         return f"the work area ({work['width']} x {work['height']}) is smaller than {out_width} x {out_height}"
@@ -166,6 +172,29 @@ def crop_box(sidecar: dict, crop: str, size: tuple[int, int]) -> tuple[int, int]
     return left, top
 
 
+def bottom_crop(screen: dict, window: dict, size: tuple[int, int]) -> tuple[int, int] | str:
+    """
+    The "bottom" crop's corner: the screen's bottom strip, taskbar included, centred on the window and
+    clamped to the screen (not the work area). The window and its margin must fit inside it sideways and
+    not stick out above it; the bottom isn't held to the work area, since the taskbar is meant to show.
+    """
+    out_width, out_height = size
+    if screen["width"] < out_width or screen["height"] < out_height:
+        return f"the screen ({screen['width']} x {screen['height']}) is smaller than {out_width} x {out_height}"
+
+    centre_x = window["x"] + window["width"] // 2
+    left = min(max(centre_x - out_width // 2, 0), screen["width"] - out_width)
+    top = screen["height"] - out_height
+
+    if (window["x"] - MARGIN < left
+            or window["x"] + window["width"] + MARGIN > left + out_width
+            or window["y"] - MARGIN < top):
+        return (f"the window ({window['width']} x {window['height']}) and a {MARGIN} px margin don't fit the "
+                f"bottom {out_width} x {out_height} of the screen; capture it smaller, nearer the bottom and "
+                f"at least {MARGIN} px from the screen's sides")
+    return left, top
+
+
 def plan(assets: Path, entries: list[dict], size: tuple[int, int]) -> tuple[list[tuple[dict, int, int]], list[str]]:
     """Each usable entry with its crop corner, and every problem found with the captures."""
     jobs, problems = [], []
@@ -175,7 +204,7 @@ def plan(assets: Path, entries: list[dict], size: tuple[int, int]) -> tuple[list
             problems.append(f"{label}: theme {entry.get('theme')!r}; Store screenshots are dark (LIST-8)")
         crop = entry.get("crop", "window")
         if crop not in CROPS:
-            problems.append(f"{label}: crop {crop!r} is not window or tray")
+            problems.append(f"{label}: crop {crop!r} is not window, tray or bottom")
             continue
         found = capture_problems(assets, entry)
         if found:
