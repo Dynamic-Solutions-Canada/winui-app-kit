@@ -477,6 +477,7 @@ _host.AddExitStep("remove the tray icon", _tray.Dispose);
 - **Exit:** `Exit` runs every exit step in the order added (a failing step is logged and the rest still run), flushes the log, closes the open settings windows (those set up with `SetUpSettingsWindow`), then shuts WinUI down in order with `Application.Exit`. Put all teardown in exit steps (closing connections, unregistering notifications, removing the tray icon), including closing any other window the app keeps open; nothing goes after `Exit`, which now returns while the app shuts down. If the shutdown hasn't ended the process within 5 seconds, it is ended anyway and the log says so.
 - **Confirmations:** `ConfirmDialog.ConfirmAsync(window, title, body, confirmText)`. Name the action on the confirm button; the question and that label come from the app's own catalogs, and Cancel is the kit's shared label unless the app passes `cancelText`.
 - **Tray icon:** `TrayIconRasterizer.Render(TrayIcon.IconPixelSize, (g, side) => ...)` draws the app's artwork on a canvas `side` pixels square, using `Ink` and `Surface` for taskbar-aware colours. Re-render on `TrayIcon.RenderNeeded` and when the taskbar colour changes.
+- **Tray anchor:** `Clicked` and `DoubleClicked` pass the icon's centre, or the cursor position when the shell can't report where the icon is; `GetAnchor()` returns the same. `TryGetAnchor(out anchor)` returns false instead of falling back, for an app that would rather place its window somewhere else than at the cursor.
 
 ### Several tray icons
 
