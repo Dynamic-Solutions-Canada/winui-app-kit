@@ -398,6 +398,10 @@ Every package in the graph is listed with its version, licence, copyright and pr
 - a string in the project's C# code links to the app's own notices on GitHub (`/blob/<branch>/` or `/raw/<branch>/`, ending in the output's file name) but names another path, such as the About page's link. Links into another repository, such as the .NET runtime's notices, are skipped; the app's repository comes from its `origin` remote, and without one every such link is checked.
 - `about_source` is set and that file has no `NoticesPath = "..."` constant, or the constant isn't the output path.
 
+Both `generate:notices` and `check:notices` stop when the restore graph is older than the package versions declared now (the kit's and the app's `Directory.Packages.props`), naming each package that moved, so neither writes nor passes an old list. Restore again, with `npm run format:check`, then regenerate.
+
+**After a kit pin bump**, run `npm run format:check` and then `npm run generate:notices`, and commit the notices with the bump. A bump that moves a shared package changes the list: v2.0.0's Windows App SDK 2.6.5 adds Microsoft.Windows.AI.MachineLearning and a newer WebView2, for example.
+
 **Dependabot package updates** change the restore graph but not the notices, so `check:notices` fails on their pull requests. Redo the bump on main instead: change the version yourself, run `npm run generate:notices`, and commit both together, then close the Dependabot PR; history stays one commit per change. If you'd rather keep the PR, push a commit with the regenerated notices to its branch. Dependabot stops updating a PR once someone else has pushed to it, so comment `@dependabot recreate` if it needs rebuilding. Don't automate the regeneration in a workflow: a push made with the workflow token doesn't start the checks again, and generating runs the new package's build files with write access.
 
 ## Packaging

@@ -14,8 +14,9 @@ It reads the optional `notices` block of the app's windows-build.json:
     }
 
 Reads the project's obj/project.assets.json, which any restore writes (`npm run format:check` restores
-the project first in `validate`), and each package's .nuspec and licence files from the NuGet package
-cache ($NUGET_PACKAGES, default ~/.nuget/packages). Every package in the graph is listed except
+the project first in `validate`), and stops if that restore predates the package versions declared now
+(after a kit pin bump, say), so it never writes or passes the old list. It also reads each package's
+.nuspec and licence files from the NuGet package cache ($NUGET_PACKAGES, default ~/.nuget/packages). Every package in the graph is listed except
 build-time tooling (names containing "BuildTools"), which never ships in the MSIX.
 
 Licences are written out in full: a package's own licence file when it has one, otherwise the standard
@@ -148,6 +149,7 @@ def shipped_packages(root, assets_path):
         fail(f"{assets_path.relative_to(root).as_posix()} is missing; restore the project first (npm run format:check does)")
 
     assets = json.loads(assets_path.read_text(encoding="utf-8"))
+    stale_restore(root, assets_path, assets)
     found = set()
     for key, library in assets.get("libraries", {}).items():
         if library.get("type") != "package":
@@ -157,6 +159,42 @@ def shipped_packages(root, assets_path):
             continue
         found.add((name, version))
     return sorted(found, key=lambda p: p[0].lower())
+
+
+def declared_versions(root):
+    """
+    The central package versions the next restore will use: the kit's build/WinUIAppKit.Packages.props,
+    then the app's own Directory.Packages.props, a later definition winning. Returns {name: version}.
+    """
+    sources = [Path(__file__).resolve().parent.parent / "build" / "WinUIAppKit.Packages.props", root / "Directory.Packages.props"]
+    versions = {}
+    for source in sources:
+        if not source.is_file():
+            continue
+        text = source.read_text(encoding="utf-8-sig")
+        for match in re.finditer(r'<PackageVersion\s+Include="([^"]+)"\s+Version="([^"]+)"', text):
+            versions[match.group(1)] = match.group(2)
+    return versions
+
+
+def stale_restore(root, assets_path, assets):
+    """
+    Stop the run when the restore graph predates the declared package versions, for example right after
+    a kit pin bump that moves the Windows App SDK. Without this, generating would rewrite the old list
+    and --check would pass against it. Compares each centrally managed package the restore recorded
+    with the version declared now; a package only one side knows is left alone.
+    """
+    declared = declared_versions(root)
+    stale = []
+    for framework in (assets.get("project", {}).get("frameworks") or {}).values():
+        for name, version in (framework.get("centralPackageVersions") or {}).items():
+            wanted = declared.get(name)
+            if wanted is not None and wanted != version:
+                stale.append(f"{name} {version} (now {wanted})")
+
+    if stale:
+        relative = assets_path.relative_to(root).as_posix()
+        fail(f"{relative} is from an earlier restore: {', '.join(sorted(set(stale)))}; restore the project again first (npm run format:check does)")
 
 
 def read_nuspec(name, version):
