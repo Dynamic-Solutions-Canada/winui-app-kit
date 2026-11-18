@@ -188,9 +188,28 @@ public sealed class TrayIcon : IDisposable
     }
 
     /// <summary>The icon's centre on screen, or the cursor position if the shell can't report it.</summary>
+    /// <remarks>Use <see cref="TryGetAnchor"/> instead when the caller needs to know which one it got.</remarks>
     public TrayAnchor GetAnchor()
     {
+        if (TryGetAnchor(out var anchor))
+        {
+            return anchor;
+        }
+
         GetCursorPos(out var pt);
+        return new TrayAnchor(pt.X, pt.Y);
+    }
+
+    /// <summary>
+    /// The icon's centre on screen, as the shell reports it. Returns false, with a default
+    /// <paramref name="anchor"/>, when the shell has no rectangle for the icon, for example while the
+    /// icon is not in the tray (hidden, not yet added, or removed). Callers that would rather place UI
+    /// somewhere else than at the cursor use this; <see cref="GetAnchor"/> falls back to the cursor.
+    /// </summary>
+    /// <param name="anchor">The icon's centre in physical screen pixels when this returns true.</param>
+    /// <returns>True when the shell reported a non-empty rectangle for the icon.</returns>
+    public bool TryGetAnchor(out TrayAnchor anchor)
+    {
         var id = new NOTIFYICONIDENTIFIER
         {
             cbSize = (uint)Marshal.SizeOf<NOTIFYICONIDENTIFIER>(),
@@ -198,12 +217,15 @@ public sealed class TrayIcon : IDisposable
             uID = Uid,
             guidItem = _useGuid ? Id : Guid.Empty,
         };
+
         if (Shell_NotifyIconGetRect(ref id, out var r) == 0 && r.Right > r.Left && r.Bottom > r.Top)
         {
-            return new TrayAnchor((r.Left + r.Right) / 2, (r.Top + r.Bottom) / 2);
+            anchor = new TrayAnchor((r.Left + r.Right) / 2, (r.Top + r.Bottom) / 2);
+            return true;
         }
 
-        return new TrayAnchor(pt.X, pt.Y);
+        anchor = default;
+        return false;
     }
 
     /// <summary>Remove the icon from the tray and stop listening. Safe to call more than once.</summary>

@@ -339,7 +339,7 @@ The check fails when:
 
 ### Store screenshots
 
-`scripts/store/render-screenshots.py` frames the app's raw window captures into its Microsoft Store screenshots and checks them (LIST-8, ASSET-9). Apps run it from their repo root as two scripts, with the check in `validate`:
+`scripts/store/render-screenshots.py` crops the app's real desktop captures into its Microsoft Store screenshots and checks them (LIST-8, ASSET-9). Apps run it from their repo root as two scripts, with the check in `validate`:
 
 ```json
 "shots:render": "python3 external/winui-app-kit/scripts/store/render-screenshots.py",
@@ -360,14 +360,15 @@ It reads `store-assets/manifest.json`, every Store screenshot in listing order:
 | Key | Use |
 | --- | --- |
 | `size` | Optional, top level. The output size, default `1366x768` |
-| `file` | The rendered screenshot, under `store-assets/microsoft/` |
-| `source` | The raw capture, under `store-assets/` (committed) |
+| `file` | The screenshot, under `store-assets/microsoft/` |
+| `source` | The desktop capture, under `store-assets/` (committed, with its `.json` beside it) |
 | `theme` | Always `dark`: Store screenshots show dark mode |
+| `crop` | `window` (default): centred on the app's window, taskbar left out. `tray`: the bottom-right corner, taskbar included, for a tray flyout |
 | `caption`, `alt` | The en-US caption (the same text and order as `screenshotCaptions` in `listings.json`) and alt text |
 
-- **Capture** the installed app on a test VM with the windows-build-tools app-test recipe: the window only, at 1:1, with its extended frame bounds (no shadow, no resize border). Click a neutral spot first so no focus rectangle shows, and keep the window under 1318 x 720 so it fits with a margin.
-- **Render:** each capture loses its 1-pixel border (it shows the desktop through), gets a soft shadow and is centred at 1:1, never scaled, on the Windows 11 default dark wallpaper, scaled to cover and centre-cropped. The output is 8-bit RGB without alpha. The wallpaper is read from the Windows install at render time (`/mnt/c/Windows/Web/Wallpaper/Windows/img19.jpg`) or passed with `--wallpaper`; it is Microsoft's image, so it is never committed and there is no fallback. ImageMagick runs in a disposable container capped at 1 GB, so the host needs only Docker; files stay owned by the caller. A capture too large to fit with a 24-pixel margin stops the render.
-- **Check** (no Docker) fails when an entry isn't dark, is missing, isn't exactly the output size, or isn't 8-bit RGB without alpha; when a caption or alt text is empty; when a PNG in the screenshots folder isn't in the manifest; when there are fewer than 1 or more than 10; or when the captions differ from the en-US `screenshotCaptions` in `store-assets/microsoft/listings.json`.
+- **Capture** the installed app on the test VM with the windows-build-tools app-test helpers (windows-build-tools 73b96b8 or later: `screenshot-desktop.ps1 -Mode Prepare`, then `Set-WindowCentered` and `Save-DesktopCapture <name> <window>` from `ui-lib.ps1`), run from the app's repo root (so the VM is claimed for the app): the whole desktop at 1:1, at 1920 x 1080 and 100% scale, fully dark, with the real wallpaper (the Windows 11 dark default, `img19.jpg`), window effects on (rounded corners, border, shadow, Mica), and the app's window focused and centred on the work area. Click a neutral spot first so no focus rectangle shows. Beside each `<name>.png` the helper writes `<name>.json`: the screen size, display scale, the window's frame (DWM extended frame bounds), the work area, the apps and system theme, the wallpaper, whether effects were on, the OS build and the capture time in UTC.
+- **Render** crops each capture to the output size, with nothing composited, shaved or scaled, and writes it as 8-bit RGB without alpha, with unfiltered rows so the check can read it without Docker (files are larger, around 0.3 to 1.2 MB each). `window` centres the crop on the window and moves it only as far as needed to keep the taskbar out; the window and a 24-pixel margin for its shadow must fit, so keep it under about 1318 x 720. ImageMagick runs in a disposable container capped at 1 GB, so the host needs only Docker; files stay owned by the caller. It renders nothing while any capture is unusable.
+- **Check** (no Docker) fails when a capture has no `.json`, or that says it was scaled, taken with apps or the system in light mode; when the app's window in the screenshot is bright (mean brightness 100 of 255 or more), which catches an app set to its own light theme on a dark Windows; when a screenshot wasn't written by this renderer; without window effects, on another wallpaper, or at a size other than the PNG's; when the window doesn't fit its crop; when an entry isn't dark; when a screenshot is missing, isn't exactly the output size, or isn't 8-bit RGB without alpha; when a caption or alt text is empty; when a PNG in the screenshots folder isn't in the manifest; when there are fewer than 1 or more than 10; or when the captions differ from the en-US `screenshotCaptions` in `store-assets/microsoft/listings.json`. The `.json` records how a capture was made; it can't prove the pixels weren't edited afterwards, which is why the captures are committed for review. Nor can the check tell an out-of-date screenshot from a fresh one: render again after recapturing.
 - **Sync** the files and each locale's captions to Partner Center with the next submission, in the same upload archive as its package: a second archive replaces the package.
 
 ### Third-party notices
@@ -477,6 +478,7 @@ _host.AddExitStep("remove the tray icon", _tray.Dispose);
 - **Exit:** `Exit` runs every exit step in the order added (a failing step is logged and the rest still run), flushes the log, closes the open settings windows (those set up with `SetUpSettingsWindow`), then shuts WinUI down in order with `Application.Exit`. Put all teardown in exit steps (closing connections, unregistering notifications, removing the tray icon), including closing any other window the app keeps open; nothing goes after `Exit`, which now returns while the app shuts down. If the shutdown hasn't ended the process within 5 seconds, it is ended anyway and the log says so.
 - **Confirmations:** `ConfirmDialog.ConfirmAsync(window, title, body, confirmText)`. Name the action on the confirm button; the question and that label come from the app's own catalogs, and Cancel is the kit's shared label unless the app passes `cancelText`.
 - **Tray icon:** `TrayIconRasterizer.Render(TrayIcon.IconPixelSize, (g, side) => ...)` draws the app's artwork on a canvas `side` pixels square, using `Ink` and `Surface` for taskbar-aware colours. Re-render on `TrayIcon.RenderNeeded` and when the taskbar colour changes.
+- **Tray anchor:** `Clicked` and `DoubleClicked` pass the icon's centre, or the cursor position when the shell can't report where the icon is; `GetAnchor()` returns the same. `TryGetAnchor(out anchor)` returns false instead of falling back, for an app that would rather place its window somewhere else than at the cursor.
 
 ### Several tray icons
 
