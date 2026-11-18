@@ -2,7 +2,7 @@ namespace WinUIAppKit.Logging;
 
 /// <summary>
 /// Connects the app to the shared NLog config the kit links into every app (LOG-1, LOG-2): logs go to
-/// one file per launch in the app's data folder, %AppData%\&lt;data folder&gt;\logs.&lt;start time&gt;.txt,
+/// one file per launch in the app's data folder, %AppData%\&lt;data folder&gt;\logs.&lt;start time in UTC&gt;.txt,
 /// keeping the current file and three older ones.
 /// </summary>
 public static class AppLogging

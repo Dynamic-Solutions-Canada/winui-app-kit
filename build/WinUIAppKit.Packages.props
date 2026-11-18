@@ -5,11 +5,14 @@
     "Using it" in the README. Do not override these versions in an app: an app never moves ahead of
     the kit, and a move happens here, as its own change.
 
-    Microsoft.WindowsAppSDK stays on the 1.8 line while every consuming app ships with
-    Microsoft.WindowsAppRuntime.1.8; moving off it means updating each app's manifest dependency.
+    Microsoft.WindowsAppSDK stays on the 2.x major line while every consuming app's manifest depends on
+    the Microsoft.WindowsAppRuntime.2 framework. 2.x minor versions update that one framework in place;
+    the next side-by-side runtime is 3.0, and moving to it means updating each app's manifest dependency.
+    When this version moves, raise the MinVersion in Xaml/CompileCheck/MSIX/Package.appxmanifest and in
+    the release notes to the runtime version in the package's WindowsAppSDK-VersionInfo.json.
   -->
   <ItemGroup>
-    <PackageVersion Include="Microsoft.WindowsAppSDK" Version="1.8.260921001" />
+    <PackageVersion Include="Microsoft.WindowsAppSDK" Version="2.6.5" />
     <PackageVersion Include="NLog" Version="6.2.2" />
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <!--

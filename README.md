@@ -23,7 +23,7 @@ Shared plumbing for small WinUI 3 desktop apps that live in the system tray: the
 | App | `AppBootstrap`, `HostWindow` | Crash logging, then settings, then the hidden host window, in that order; the host is a 1x1 off-screen tool window that answers a second launch and runs the app's exit steps before WinUI's orderly shutdown (`Application.Exit`) |
 | App | `AppEnvironment`, `SingleInstance` | Packaged or not, version, data folders, one running copy (bringing the first copy forward, with or without a host window) |
 | Updates | `UpdateService`, `UpdateCheckResult`, `GitHubReleases` | The About page's "Check for updates": the Store's updates page when packaged, the app's GitHub Releases when not; never in the background |
-| Logging | `AppLogging` | Names the app's data folder for the shared NLog config (one log file per launch beside `settings.json`, keeping the current file and three older ones), and opens that folder for "Open logs folder" |
+| Logging | `AppLogging` | Names the app's data folder for the shared NLog config (one log file per launch beside `settings.json`, named from its start time in UTC, keeping the current file and three older ones), and opens that folder for "Open logs folder" |
 
 Win32 declarations shared by these live in `Interop/NativeMethods.cs`.
 
@@ -42,7 +42,7 @@ git -C external/winui-app-kit checkout vX.Y.Z
 <ProjectReference Include="..\external\winui-app-kit\WinUIAppKit\WinUIAppKit.csproj" />
 ```
 
-The kit targets `net10.0-windows10.0.22000.0` and Windows App SDK 1.8, and runs on Windows 10 22H2 (build 19045) and later; see "Windows 10". The app takes its Windows App SDK version from the kit (below) and never moves ahead of it.
+The kit targets `net10.0-windows10.0.22000.0` and Windows App SDK 2.x, and runs on Windows 10 22H2 (build 19045) and later; see "Windows 10". The app takes its Windows App SDK version from the kit (below) and never moves ahead of it.
 
 ### Shared build configuration
 
@@ -416,6 +416,7 @@ Every package in the graph is listed with its version, licence, copyright and pr
 
 - **Steps:** it publishes the app self-contained, plus any `companions`, assembles the layout with the compiled XAML, stamps the manifest's version and identity, builds one `resources.pri` for every declared language, checks the manifest strings resolve in each, then packs and signs.
 - **Manifest strings:** each `ms-resource:Resources/<Key>` in the manifest is read from the `manifest_strings` catalogs. `check:l10n` counts those keys as used and exempts them from `english_keys`, since the manifest needs identifier keys, so an English-keyed app can keep `AppDescription` beside its English-text keys.
+- **Windows App Runtime:** the app's `Package.appxmanifest` depends on the runtime framework matching the kit's Windows App SDK, in its `<Dependencies>`: `<PackageDependency Name="Microsoft.WindowsAppRuntime.2" MinVersion="2.6.5.0" Publisher="CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US" />`. Raise `MinVersion` when the kit's release notes say so. The Store installs and updates the framework for users; a test PC needs it installed first.
 - **Languages:** the regional identities (en-CA, fr-CA) reuse the US English and French catalogs, as listed in `build/languages.json`, the family's one language list (LOC-2).
 - **Signing:**
   - Signing material is only ever a parameter. There is no fallback certificate, no generated certificate and no written password, and `-NoSign` builds the unsigned Store upload.

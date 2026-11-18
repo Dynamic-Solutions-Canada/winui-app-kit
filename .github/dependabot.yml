@@ -5,7 +5,7 @@ updates:
     # The library and the portable harnesses, not "/". Xaml/CompileCheck is a WinUI MSIX app project
     # that cannot be evaluated on Dependabot's Linux runner; once it existed under "/", Dependabot closed
     # its Windows App SDK PR as "no longer updatable" (PR 1, 2026-11-16). That cause is a hypothesis
-    # (the job log was not available); the next 1.8 or 2.x SDK release confirms it if a PR appears.
+    # (the job log was not available); the live runs on 2026-11-17 found the SDK again once "/" was dropped.
     # Every listed project imports build/WinUIAppKit.Packages.props, where the versions are updated.
     directories:
       - "/WinUIAppKit"
@@ -19,10 +19,11 @@ updates:
       nuget:
         patterns: ["*"]
     ignore:
-      # The kit stays on the Windows App SDK 1.8 line while every consuming app ships with
-      # Microsoft.WindowsAppRuntime.1.8; moving off it means updating each app's manifest dependency.
+      # The kit stays on Windows App SDK 2.x while every consuming app's manifest depends on the
+      # Microsoft.WindowsAppRuntime.2 framework; 2.x minors update that framework in place, 3.0 needs
+      # each app's manifest changed.
       - dependency-name: Microsoft.WindowsAppSDK
-        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+        update-types: ["version-update:semver-major"]
       # Held on the .NET 10 line with the rest of the family; 11.x belongs to the next .NET major
       # (see build/WinUIAppKit.Packages.props).
       - dependency-name: System.Security.Cryptography.ProtectedData
