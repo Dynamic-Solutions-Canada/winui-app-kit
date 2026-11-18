@@ -20,7 +20,7 @@ Shared plumbing for small WinUI 3 desktop apps that live in the system tray: the
 | Localization | `SupportedLanguages`, `UiText`, `Localize`, `LocalizedMessage`, `TextCatalogs`, `TextLookup`, `PluralRules`, `TextFormat` | Interface text from per-language JSON catalogs embedded in the app (one file per language, or area files merged at load), chosen from the user's override or Windows' languages; plurals; a dependency-free core a companion process can link; XAML attached properties that relabel open windows live; messages stored as key plus values so they follow a language change; the kit's own translated shared labels (`kit.*`) |
 | Shared XAML | `Styles.xaml`, `SettingsShell`, `AboutPage`, `AboutInfo`, `WindowChrome.SetUpSettingsWindow` | The family's page and card styles, the settings window shell with its fixed footer, and the About page with the standard cards; compiled by the app (see "Shared XAML") |
 | Shared XAML | `StartupSetting`, `ThemeSetting`, `LanguageSetting`, `ResetSetting` | The Settings page rows every app has: Start with Windows, App theme, Language and Reset settings |
-| App | `AppBootstrap`, `HostWindow` | Crash logging, then settings, then the hidden host window, in that order; the host is a 1x1 off-screen tool window that answers a second launch and runs the app's exit steps before `Environment.Exit` |
+| App | `AppBootstrap`, `HostWindow` | Crash logging, then settings, then the hidden host window, in that order; the host is a 1x1 off-screen tool window that answers a second launch and runs the app's exit steps before WinUI's orderly shutdown (`Application.Exit`) |
 | App | `AppEnvironment`, `SingleInstance` | Packaged or not, version, data folders, one running copy (bringing the first copy forward, with or without a host window) |
 | Updates | `UpdateService`, `UpdateCheckResult`, `GitHubReleases` | The About page's "Check for updates": the Store's updates page when packaged, the app's GitHub Releases when not; never in the background |
 | Logging | `AppLogging` | Names the app's data folder for the shared NLog config (one log file per launch beside `settings.json`, named from its start time in UTC, keeping the current file and three older ones), and opens that folder for "Open logs folder" |
@@ -337,6 +337,39 @@ The check fails when:
 - a title isn't the product name, or the README's header tagline isn't the first sentence of the en-US `shortDescription`;
 - the release notes for the current `<Version>` are missing for any wording catalog, have a heading, run over 1,500 characters, or include a file for a Canadian identity.
 
+### Store screenshots
+
+`scripts/store/render-screenshots.py` frames the app's raw window captures into its Microsoft Store screenshots and checks them (LIST-8, ASSET-9). Apps run it from their repo root as two scripts, with the check in `validate`:
+
+```json
+"shots:render": "python3 external/winui-app-kit/scripts/store/render-screenshots.py",
+"check:screenshots": "python3 external/winui-app-kit/scripts/store/render-screenshots.py --check"
+```
+
+It reads `store-assets/manifest.json`, every Store screenshot in listing order:
+
+```json
+{
+  "microsoft": [
+    { "file": "screenshots/00-home-dark.png", "source": "raw/microsoft/00-home-dark.png",
+      "theme": "dark", "caption": "The en-US caption", "alt": "What the screenshot shows" }
+  ]
+}
+```
+
+| Key | Use |
+| --- | --- |
+| `size` | Optional, top level. The output size, default `1366x768` |
+| `file` | The rendered screenshot, under `store-assets/microsoft/` |
+| `source` | The raw capture, under `store-assets/` (committed) |
+| `theme` | Always `dark`: Store screenshots show dark mode |
+| `caption`, `alt` | The en-US caption (the same text and order as `screenshotCaptions` in `listings.json`) and alt text |
+
+- **Capture** the installed app on a test VM with the windows-build-tools app-test recipe: the window only, at 1:1, with its extended frame bounds (no shadow, no resize border). Click a neutral spot first so no focus rectangle shows, and keep the window under 1318 x 720 so it fits with a margin.
+- **Render:** each capture loses its 1-pixel border (it shows the desktop through), gets a soft shadow and is centred at 1:1, never scaled, on the Windows 11 default dark wallpaper, scaled to cover and centre-cropped. The output is 8-bit RGB without alpha. The wallpaper is read from the Windows install at render time (`/mnt/c/Windows/Web/Wallpaper/Windows/img19.jpg`) or passed with `--wallpaper`; it is Microsoft's image, so it is never committed and there is no fallback. ImageMagick runs in a disposable container capped at 1 GB, so the host needs only Docker; files stay owned by the caller. A capture too large to fit with a 24-pixel margin stops the render.
+- **Check** (no Docker) fails when an entry isn't dark, is missing, isn't exactly the output size, or isn't 8-bit RGB without alpha; when a caption or alt text is empty; when a PNG in the screenshots folder isn't in the manifest; when there are fewer than 1 or more than 10; or when the captions differ from the en-US `screenshotCaptions` in `store-assets/microsoft/listings.json`.
+- **Sync** the files and each locale's captions to Partner Center with the next submission, in the same upload archive as its package: a second archive replaces the package.
+
 ### Third-party notices
 
 `scripts/generate-notices.py` writes the app's third-party notices from its NuGet restore graph (HYG-3). Apps run it from their repo root as two scripts, and put `check:notices` in `validate` after `format:check`, which restores the project:
@@ -441,7 +474,7 @@ _host.AddExitStep("remove the tray icon", _tray.Dispose);
 - **Crash logging:** `AppBootstrap.Launch` installs the two unhandled-exception handlers (log, then flush) before anything else runs. WinUI exceptions are marked handled so the app keeps running; call `InstallCrashLogging` yourself to choose otherwise.
 - **Host window:** `HostWindow` gives the host the title `SingleInstance.SignalRunningInstance` looks for. Pass the same title and message name to both.
 - **Apps with no host window:** an app whose only window is visible (not resident) calls `SingleInstance.RegisterWindow(WindowChrome.Hwnd(window))` once its window exists. A second launch calls `SingleInstance.BringRunningInstanceForward(mutexName)` after `TryClaim` returns false, then exits: it restores the first copy's window if minimized and brings it to the front, using the foreground right the user's launch carries. No window title is needed; the window is recorded in session-local shared memory under the mutex name.
-- **Exit:** `Exit` runs every exit step in the order added (a failing step is logged and the rest still run), flushes the log, then ends the process. Put all teardown in exit steps (closing connections, unregistering notifications, removing the tray icon), never after `Exit`.
+- **Exit:** `Exit` runs every exit step in the order added (a failing step is logged and the rest still run), flushes the log, closes the open settings windows (those set up with `SetUpSettingsWindow`), then shuts WinUI down in order with `Application.Exit`. Put all teardown in exit steps (closing connections, unregistering notifications, removing the tray icon), including closing any other window the app keeps open; nothing goes after `Exit`, which now returns while the app shuts down. If the shutdown hasn't ended the process within 5 seconds, it is ended anyway and the log says so.
 - **Confirmations:** `ConfirmDialog.ConfirmAsync(window, title, body, confirmText)`. Name the action on the confirm button; the question and that label come from the app's own catalogs, and Cancel is the kit's shared label unless the app passes `cancelText`.
 - **Tray icon:** `TrayIconRasterizer.Render(TrayIcon.IconPixelSize, (g, side) => ...)` draws the app's artwork on a canvas `side` pixels square, using `Ink` and `Surface` for taskbar-aware colours. Re-render on `TrayIcon.RenderNeeded` and when the taskbar colour changes.
 
@@ -574,8 +607,10 @@ Everything else behaves the same on both: the tray icon and its dark menu, flyou
 Apps link to this section rather than repeating it in their own docs.
 
 - **Identity values never change once shipped.** The app passes its own tray icon GUID, single-instance mutex name, startup task id and Run value name. Windows keys the user's show/hide choice for the tray icon on the GUID, so a new GUID loses that choice.
+- **After an app update, Windows 10 may refuse the tray icon's GUID.** Windows ties an icon GUID to the path of the program that first registered it, and every MSIX update installs to a new folder; only programs Authenticode-signed by the same company keep it. When the GUID is refused, `TrayIcon` adds the icon by host window and number instead for that session and logs a warning, so the icon still shows, but the user's show-or-hide choice for it starts over. Keep the GUID anyway: Windows 11 keeps it across updates (tested), and so do unchanged installs, so only Windows 10 falls back.
 - **Pass the real tray tooltip on the first `Update`.** The icon is not added until then. Explorer keeps the first tooltip in the icon's screen-reader name, and later tooltip changes have been seen appended to it rather than replacing it, so a placeholder such as "Starting" can be read out for as long as the app runs. Work out the state first, or use the app's name alone.
-- **Claim `SingleInstance` before loading settings,** so a second launch exits without touching the settings file.
+- **Claim `SingleInstance` before loading settings,** so a second launch exits without touching the settings file End that second launch with `SingleInstance.ExitThisLaunch()` (after `SignalRunningInstance` or `BringRunningInstanceForward`), not `Environment.Exit`.
+- **Never call `Environment.Exit` on the UI thread once WinUI has started.** On Windows App SDK 2 under Windows 10 it crashes in CoreMessaging (fail-fast 0xc0000602) on every exit. Use `HostWindow.Exit` for a resident app, `SingleInstance.ExitThisLaunch` for a second launch, or `Application.Current.Exit()` after closing the app's windows.
 - **An app namespace ending in `.Windows` shadows WinRT `Windows.*`.** Write `global::Windows...` for WinRT types in that app.
 - **Never hide a flyout window yourself.** `FlyoutController` closes it by cloaking it and parking it off-screen, so WinUI keeps its composition surfaces and the next open is instant. It reveals the window only after it has rendered, and ignores a toggle within 300 ms of a dismissal (the tray click that closed it).
 - **Paths handed to another process** (Explorer, a file picker) use `AppEnvironment.PhysicalDataDirectory`. When packaged, `%AppData%` writes are redirected into the package, and other processes do not see them at the path the app uses.

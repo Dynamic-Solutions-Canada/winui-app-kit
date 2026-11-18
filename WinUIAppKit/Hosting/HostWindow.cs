@@ -8,7 +8,7 @@ namespace WinUIAppKit.Hosting;
 /// Turns a resident app's <c>MainWindow</c> into the hidden host that owns its tray icon (TRAY-7, D-074):
 /// a 1x1 tool window parked off-screen, never in the taskbar or Alt+Tab, that cancels its own close.
 /// It also answers a second launch's "show yourself" message, and runs the app's exit steps before
-/// <see cref="Environment.Exit(int)"/>.
+/// WinUI's orderly shutdown (<see cref="Application.Exit"/>).
 /// </summary>
 public sealed class HostWindow
 {
@@ -65,10 +65,24 @@ public sealed class HostWindow
     /// <param name="step">The work to do. It runs on the calling thread before the process ends.</param>
     public void AddExitStep(string name, Action step) => _exitSteps.Add((name, step));
 
+    /// <summary>How long the orderly shutdown may take before the process is ended anyway.</summary>
+    private static readonly TimeSpan ShutdownGrace = TimeSpan.FromSeconds(5);
+
     /// <summary>
     /// Exit the app: run every exit step (a failing step is logged and the rest still run), flush the
-    /// log, then end the process with <see cref="Environment.Exit(int)"/>. A second call while exiting
-    /// does nothing.
+    /// log, close the open settings windows, then shut WinUI down in order with
+    /// <see cref="Application.Exit"/>, which ends the message loop and the process.
+    /// <para>
+    /// Ending the process outright from the UI thread (<see cref="Environment.Exit(int)"/>) leaves the
+    /// dispatcher and composition objects to the OS, and Windows App SDK 2 on Windows 10 answers that with
+    /// a CoreMessaging fail-fast. <see cref="Application.Exit"/> stalls while a settings window is open, so
+    /// those are closed first. If the shutdown still hasn't ended the process within
+    /// <see cref="ShutdownGrace"/> (a window of the app's own that stays open, say), it is ended from a
+    /// background thread, which does not crash, and the log says so.
+    /// </para>
+    /// <para>
+    /// Exit returns while the app shuts down, so nothing should follow it. A second call does nothing.
+    /// </para>
     /// </summary>
     public void Exit()
     {
@@ -92,7 +106,27 @@ public sealed class HostWindow
         }
 
         NLog.LogManager.Flush();
-        Environment.Exit(0);
+
+        // A background thread never keeps the process alive, so this only fires if the shutdown stalls.
+        var backstop = new Thread(() =>
+        {
+            Thread.Sleep(ShutdownGrace);
+            Logger.Warn("Orderly shutdown took longer than {Seconds} s; ending the process", ShutdownGrace.TotalSeconds);
+            NLog.LogManager.Flush();
+            Environment.Exit(0);
+        })
+        {
+            IsBackground = true,
+            Name = "Exit backstop",
+        };
+        backstop.Start();
+
+        foreach (var window in Windowing.WindowChrome.OpenSettingsWindows.ToList())
+        {
+            window.Close();
+        }
+
+        Application.Current.Exit();
     }
 
     /// <summary>Make the host invisible for good: tool window, out of switchers, 1x1 off-screen, never closed.</summary>
@@ -103,7 +137,8 @@ public sealed class HostWindow
         appWindow.IsShownInSwitchers = false;
         appWindow.Move(new global::Windows.Graphics.PointInt32(-9999, -9999));
         appWindow.Resize(new global::Windows.Graphics.SizeInt32(1, 1));
-        appWindow.Closing += (_, e) => e.Cancel = true;
+        // The host refuses every close except the app's own exit.
+        appWindow.Closing += (_, e) => e.Cancel = !_exiting;
     }
 
     private IntPtr WndProc(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam, UIntPtr id, UIntPtr refData)
