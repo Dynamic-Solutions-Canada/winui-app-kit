@@ -31,7 +31,7 @@ Crop: nothing is composited, shaved or scaled. "window" takes an output-size rec
 window, moved only as far as needed to stay inside the work area (so the taskbar stays out); the window
 and a margin for its shadow must fit, or the crop fails. "tray" takes the bottom-right output-size
 rectangle of the screen, taskbar included, for a tray flyout. The result is written as 8-bit RGB without
-alpha. ImageMagick runs in a disposable container with a memory cap, so the host needs only Docker;
+alpha and with unfiltered rows. ImageMagick (cropping only) runs in a disposable container with a memory cap, so the host needs only Docker;
 files stay owned by the caller.
 
 Check (no Docker) fails when:
@@ -54,6 +54,7 @@ import os
 import struct
 import subprocess
 import sys
+import zlib
 from pathlib import Path
 
 IMAGE = "alpine:3.24.4"
@@ -62,6 +63,10 @@ MARGIN = 24  # desktop kept around the window frame on every side, for its shado
 WALLPAPER = "img19.jpg"
 MAX_SCREENSHOTS = 10
 CROPS = ("window", "tray")
+# Mean luma (0-255, Rec. 709) of the window in a screenshot must be below this, so an app set to its own
+# light theme fails even on a dark Windows. Calibrated on little-launcher's real dark captures (windows
+# and tray flyouts measured 40-58) and the same windows inverted to light (197-215).
+DARK_LUMA_LIMIT = 100
 
 
 def fail(message: str) -> None:
@@ -193,31 +198,99 @@ def render(assets: Path, entries: list[dict], size: tuple[int, int]) -> None:
             print("error: " + problem, file=sys.stderr)
         fail("nothing was rendered")
 
+    # ImageMagick crops each capture to raw 8-bit RGB (it ignores PNG filter settings); this script then
+    # writes the PNG itself with unfiltered rows, which the check decodes without Docker.
     width, height = size
+    scratch = assets / ".render"
+    scratch.mkdir(exist_ok=True)
     commands = [
         f'magick "{entry["source"]}" -crop {width}x{height}+{left}+{top} +repage '
-        f'-alpha off -depth 8 -strip -define png:color-type=2 "microsoft/{entry["file"]}"'
-        for entry, left, top in jobs
+        f'-alpha off -depth 8 "RGB:.render/{index}.rgb"'
+        for index, (entry, left, top) in enumerate(jobs)
     ]
-    folders = sorted({str(Path("microsoft") / Path(entry["file"]).parent) for entry in entries})
     owner = f"{os.getuid()}:{os.getgid()}"
     script = (
         "apk add -q --no-cache imagemagick >/dev/null && cd /assets && "
-        + " && ".join(f'mkdir -p "{folder}"' for folder in folders) + " && "
         + " && ".join(commands)
-        + " && " + " && ".join(f'chown -R {owner} "{folder}"' for folder in folders)
+        + f" && chown -R {owner} .render"
     )
-    subprocess.run(
-        ["docker", "run", "--rm", "--memory", "1g", "--memory-swap", "1g", "-v", f"{assets}:/assets",
-         IMAGE, "sh", "-c", script],
-        check=True,
-    )
+    try:
+        subprocess.run(
+            ["docker", "run", "--rm", "--memory", "1g", "--memory-swap", "1g", "-v", f"{assets}:/assets",
+             IMAGE, "sh", "-c", script],
+            check=True,
+        )
+        for index, (entry, _, _) in enumerate(jobs):
+            raw_path = scratch / f"{index}.rgb"
+            output = assets / "microsoft" / entry["file"]
+            output.parent.mkdir(parents=True, exist_ok=True)
+            write_rgb_png(output, raw_path.read_bytes(), width, height)
+            raw_path.unlink()
+    finally:
+        for leftover in scratch.glob("*.rgb"):
+            leftover.unlink()
+        scratch.rmdir()
+
+
+def write_rgb_png(path: Path, pixels: bytes, width: int, height: int) -> None:
+    """Write 8-bit RGB pixels as a PNG with every row unfiltered (filter type 0) and no other chunks."""
+    if len(pixels) != width * height * 3:
+        fail(f"{path.name}: the crop came back {len(pixels)} bytes, not {width} x {height} RGB")
+    stride = width * 3
+    rows = b"".join(b"\x00" + pixels[y * stride:(y + 1) * stride] for y in range(height))
+
+    def chunk(kind: bytes, body: bytes) -> bytes:
+        return struct.pack(">I", len(body)) + kind + body + struct.pack(">I", zlib.crc32(kind + body) & 0xFFFFFFFF)
+
+    header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    path.write_bytes(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(rows, 9)) + chunk(b"IEND", b""))
+
+
+def read_unfiltered_rgb(path: Path, width: int, height: int) -> list[bytes] | str:
+    """
+    The rows of an 8-bit RGB PNG the renderer wrote with no row filters (see write_rgb_png), or a message.
+    The renderer always writes them that way, so a stdlib decode is enough; a file with filtered rows
+    was not written by this renderer.
+    """
+    data = path.read_bytes()
+    position, compressed = 8, bytearray()
+    while position < len(data):
+        length = struct.unpack(">I", data[position:position + 4])[0]
+        kind = data[position + 4:position + 8]
+        if kind == b"IDAT":
+            compressed += data[position + 8:position + 8 + length]
+        position += 12 + length
+    raw = zlib.decompress(bytes(compressed))
+    stride = width * 3 + 1
+    if len(raw) != stride * height:
+        return "image data does not match its size"
+    rows = []
+    for y in range(height):
+        row = raw[y * stride:(y + 1) * stride]
+        if row[0] != 0:
+            return "not written by the kit's renderer (its rows are filtered); render it again"
+        rows.append(row[1:])
+    return rows
+
+
+def window_luma(rows: list[bytes], box: tuple[int, int, int, int]) -> float:
+    """Mean Rec. 709 luma (0-255) of the rectangle (left, top, width, height) in RGB rows."""
+    left, top, width, height = box
+    red = green = blue = 0
+    for row in rows[top:top + height]:
+        segment = row[left * 3:(left + width) * 3]
+        red += sum(segment[0::3])
+        green += sum(segment[1::3])
+        blue += sum(segment[2::3])
+    count = width * height
+    return (0.2126 * red + 0.7152 * green + 0.0722 * blue) / count
 
 
 def check(assets: Path, entries: list[dict], size: tuple[int, int]) -> int:
     """Every capture and screenshot is as the Store and LIST-8 require, and nothing is extra."""
     width, height = size
-    _, problems = plan(assets, entries, size)
+    jobs, problems = plan(assets, entries, size)
+    corners = {id(entry): (left, top) for entry, left, top in jobs}
     rendered = set()
     for entry in entries:
         path = assets / "microsoft" / entry.get("file", "")
@@ -237,6 +310,21 @@ def check(assets: Path, entries: list[dict], size: tuple[int, int]) -> int:
             problems.append(f"{entry['file']}: {actual_width} x {actual_height}, not {width} x {height}")
         if depth != 8 or colour != 2:
             problems.append(f"{entry['file']}: not 8-bit RGB without alpha (bit depth {depth}, colour type {colour})")
+            continue
+        if (actual_width, actual_height) != (width, height) or id(entry) not in corners:
+            continue
+
+        # The app itself must be dark: its own theme setting can be light while Windows is dark.
+        rows = read_unfiltered_rgb(path, width, height)
+        if isinstance(rows, str):
+            problems.append(f"{entry['file']}: {rows}")
+            continue
+        sidecar = json.loads((assets / entry["source"]).with_suffix(".json").read_text(encoding="utf-8-sig"))
+        window = sidecar["window"]
+        left, top = corners[id(entry)]
+        luma = window_luma(rows, (window["x"] - left, window["y"] - top, window["width"], window["height"]))
+        if luma >= DARK_LUMA_LIMIT:
+            problems.append(f"{entry['file']}: the window's mean brightness is {luma:.0f} of 255 (dark is under {DARK_LUMA_LIMIT}); is the app set to its light theme?")
 
     for folder in {(assets / "microsoft" / entry.get("file", "")).parent for entry in entries}:
         for path in folder.glob("*.png"):
