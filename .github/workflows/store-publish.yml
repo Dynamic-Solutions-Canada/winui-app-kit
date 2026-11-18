@@ -108,7 +108,7 @@ permissions:
 
 env:
   # The kit version this workflow belongs to; must equal <Version> in the caller's kit submodule.
-  KIT_VERSION: '1.24.0'
+  KIT_VERSION: '2.0.0'
 
 jobs:
   gate:
