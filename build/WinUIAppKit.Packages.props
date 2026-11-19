@@ -9,10 +9,12 @@
     the Microsoft.WindowsAppRuntime.2 framework. 2.x minor versions update that one framework in place;
     the next side-by-side runtime is 3.0, and moving to it means updating each app's manifest dependency.
     When this version moves, raise the MinVersion in Xaml/CompileCheck/MSIX/Package.appxmanifest and in
-    the release notes to the runtime version in the package's WindowsAppSDK-VersionInfo.json.
+    the release notes to the runtime version in the package's WindowsAppSDK-VersionInfo.json. That is a
+    minor kit version: build-msix.ps1 refuses to pack an app whose manifest still has the lower MinVersion
+    (build/runtime-dependency.ps1), so the edit each app needs cannot be missed.
   -->
   <ItemGroup>
-    <PackageVersion Include="Microsoft.WindowsAppSDK" Version="2.6.5" />
+    <PackageVersion Include="Microsoft.WindowsAppSDK" Version="2.7.0" />
     <PackageVersion Include="NLog" Version="6.2.2" />
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <!--
