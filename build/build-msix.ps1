@@ -11,6 +11,9 @@
     3. Builds one resources.pri for every declared language, including the manifest's translated
        strings from the app's JSON catalogs, and checks it.
     4. Packs with makeappx (a bundle in Store-identity mode) and signs with signtool.
+    5. Copies the package into .artifacts/packages/<version>/ under its LAYOUT-12 name
+       (<package_name>-<version>-windows-<arch>[-store].<ext>) and removes older versions' packages
+       from package_output. package_output keeps today's names, which the Store workflow reads.
 
     Signing material is only ever a parameter (SEC-11, DIST-2): there is no fallback certificate, no
     generated certificate and no written password. -NoSign builds the unsigned Store upload.
@@ -60,6 +63,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+
+# Deliverable naming and package_output pruning, kept in their own file so tests/build can check them.
+. (Join-Path $PSScriptRoot "package-output.ps1")
 
 # ---------------------------------------------------------------------------------------------------
 # Helpers
@@ -455,7 +461,17 @@ if ($signCert) {
     Invoke-Sign $packagePath
 }
 
+# The finished package also goes to .artifacts/packages/<version>/ under its LAYOUT-12 name, and older
+# versions' packages leave package_output, whose newest pair is then the one to upload by hand.
+$productWarning = Test-DeliverableProduct $packageName
+if ($productWarning) { Write-Warning $productWarning }
+$deliverable = Copy-Deliverable $packagePath $RepoRoot $packageName $version $Platform ([bool]$StoreIdentity)
+foreach ($old in (Remove-OlderPackages $outputDir $packageName $version)) {
+    Write-Host "  Removed older package: $old" -ForegroundColor DarkGray
+}
+
 $size = [math]::Round((Get-Item $packagePath).Length / 1MB, 1)
 Write-Host "`n=== SUCCESS ===" -ForegroundColor Green
 Write-Host "  Package:  $packagePath ($size MB)"
+Write-Host "  Deliverable: $deliverable"
 Write-Host "  Version:  $msixVersion  Platform: $Platform  Signed: $([bool]$signCert)"
