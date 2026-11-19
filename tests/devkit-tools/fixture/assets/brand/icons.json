@@ -1,0 +1,6 @@
+{
+  "background": "#17181D",
+  "targets": {
+    "windows": { "images": "AppMSIX/Images", "ico": "App/App.ico", "tiles": false }
+  }
+}

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Run every test under the repo's tests/ folder (TEST-2, TEST-5): found by walking the folder, never a
-# hand-kept list. Each .NET harness is a console project run with `dotnet run`, and each PowerShell test is
-# a *.Tests.ps1 script run with pwsh; both exit non-zero on a failure. They run through the kit's
+# hand-kept list. Each .NET harness is a console project run with `dotnet run`, each PowerShell test is
+# a *.Tests.ps1 script run with pwsh, and each shell test is a *.test.sh script run with bash on the host
+# (for tools the SDK container lacks, such as Node); all exit non-zero on a failure. They run through the kit's
 # scripts/dotnet and scripts/pwsh, so the same command works on Linux and in CI.
 #
 # The repo is the folder this runs in (npm sets it to the package root), never this script's own path:
@@ -32,7 +33,11 @@ mapfile -t scripts < <(
     find "$repo_root/tests" -name '*.Tests.ps1' -not -path '*/bin/*' -not -path '*/obj/*' 2>/dev/null | sort
 )
 
-if [[ ${#projects[@]} -eq 0 && ${#scripts[@]} -eq 0 ]]; then
+mapfile -t shell_tests < <(
+    find "$repo_root/tests" -name '*.test.sh' -not -path '*/bin/*' -not -path '*/obj/*' -not -path '*/node_modules/*' 2>/dev/null | sort
+)
+
+if [[ ${#projects[@]} -eq 0 && ${#scripts[@]} -eq 0 && ${#shell_tests[@]} -eq 0 ]]; then
     if [[ "$allow_none" == true ]]; then
         printf 'run-tests: no tests under %s/tests, and --allow-none says that is expected.\n' "$repo_root"
         exit 0
@@ -52,4 +57,10 @@ for script in "${scripts[@]}"; do
     relative="${script#"$repo_root"/}"
     printf 'run-tests: %s\n' "$relative"
     "$kit_scripts/pwsh" -NoProfile -File "$relative"
+done
+
+for test in "${shell_tests[@]}"; do
+    relative="${test#"$repo_root"/}"
+    printf 'run-tests: %s\n' "$relative"
+    bash "$relative"
 done

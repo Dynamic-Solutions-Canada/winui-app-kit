@@ -366,6 +366,9 @@ FodyWeavers.xsd
 # Part 2: project rules, each with a one-line reason.
 # The template's [Rr]elease/ build-output rule would otherwise hide the release skill (AI-7).
 !/.agents/skills/release/
+# The devkit tools scripts/devkit installs into the kit, and its install lock (SCRIPT-1).
+/tools/devkit/node_modules/
+/tools/devkit/.install.lock
 
 # Part 3: the shared block, copied unchanged from build/shared.gitignore (npm run check:gitignore compares them).
 # Shared block (HYG-6), from winui-app-kit build/shared.gitignore. Paste it unchanged as the last part

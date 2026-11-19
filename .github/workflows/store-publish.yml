@@ -39,7 +39,7 @@ on:
         type: string
         default: 'release-notes'
       gate_command:
-        description: "The app's gate, run on a clean Linux runner (only .NET set up) before anything is built or sent to the Store; include any install it needs"
+        description: "The app's gate, run on a clean Linux runner (.NET and Node set up) before anything is built or sent to the Store; include any install it needs"
         type: string
         default: 'npm run validate'
       pre_build:
@@ -127,6 +127,12 @@ jobs:
         uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
+
+      - name: Set up Node for the kit's scripts/devkit, which an app gate may run
+        # devkit needs Node 22.12 or later, below 25 (tools/devkit/package.json).
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
 
       - name: Run the gate
         env:

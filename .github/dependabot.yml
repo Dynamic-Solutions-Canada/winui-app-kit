@@ -29,6 +29,16 @@ updates:
       - dependency-name: System.Security.Cryptography.ProtectedData
         update-types: ["version-update:semver-major"]
 
+  - package-ecosystem: npm
+    # The devkit tools scripts/devkit installs for the Windows apps.
+    directory: "/tools/devkit"
+    schedule:
+      interval: weekly
+    ignore:
+      # The icon check compares rendered bytes, so the renderer moves only by hand, with every app's
+      # icons regenerated in the same change.
+      - dependency-name: "@resvg/resvg-js"
+
   - package-ecosystem: github-actions
     directory: "/"
     schedule:

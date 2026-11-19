@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# Run a devkit command for a Windows app repo, from the kit's own install, so the app keeps no Node
+# dependencies of its own (SCRIPT-1). Run it from the app's repo root (npm and lefthook do):
+#   external/winui-app-kit/scripts/devkit icons            write every icon size from assets/brand/
+#   external/winui-app-kit/scripts/devkit icons --check    fail when a committed icon is stale (validate)
+#   external/winui-app-kit/scripts/devkit precommit [...]  refuse secrets and oversized staged files
+# Every argument after the command passes through unchanged, so each app keeps its own policy (for
+# example --allow and --max-size for precommit) in its package.json or lefthook.yml.
+#
+# The commands and the icon renderer (@resvg/resvg-js) are pinned exactly in tools/devkit/package-lock.json
+# and installed with `npm ci` into tools/devkit/node_modules, inside the kit and ignored there. The install
+# runs on first use and again whenever the lockfile changes (a kit pin bump), and never otherwise, so a
+# pre-commit hook stays fast. The renderer must be the same version on every machine, because
+# `icons --check` compares bytes.
+#
+# Needs Node 22.12 or later, below 25 (devkit's own range), and npm. The first install fetches devkit
+# from GitHub over HTTPS.
+set -euo pipefail
+
+kit_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+tools="$kit_root/tools/devkit"
+modules="$tools/node_modules"
+stamp="$modules/.kit-lockfile.sha256"
+
+usage() {
+    printf 'usage: scripts/devkit icons [--check] | precommit [devkit-precommit options]\n' >&2
+    exit 2
+}
+
+# Refuse a Node outside devkit's range with a clear message, before npm prints an engine warning.
+require_node() {
+    if ! command -v node >/dev/null || ! command -v npm >/dev/null; then
+        printf 'devkit: Node 22.12 or later (below 25) and npm are needed; neither was found on PATH.\n' >&2
+        exit 1
+    fi
+    local version major minor
+    version="$(node -p 'process.versions.node')"
+    major="${version%%.*}"
+    minor="$(printf '%s' "$version" | cut -d. -f2)"
+    if (( major < 22 || major >= 25 || (major == 22 && minor < 12) )); then
+        printf 'devkit: Node %s is outside devkit'"'"'s range (22.12 or later, below 25).\n' "$version" >&2
+        exit 1
+    fi
+}
+
+# Install from the lockfile when nothing is installed or the lockfile changed since the last install.
+# A lock serializes installs, because lefthook can run several hook jobs at once.
+ensure_installed() {
+    local want
+    want="$(sha256sum "$tools/package-lock.json" | cut -d' ' -f1)"
+    if [[ -f "$stamp" && "$(cat "$stamp")" == "$want" ]]; then
+        return 0
+    fi
+
+    # flock is missing from Git for Windows' bash; there the install runs unlocked.
+    if command -v flock >/dev/null; then
+        exec 9>"$tools/.install.lock"
+        flock 9
+    fi
+    if [[ -f "$stamp" && "$(cat "$stamp")" == "$want" ]]; then
+        return 0
+    fi
+
+    printf 'devkit: installing the pinned devkit tools into %s\n' "${modules#"$kit_root"/}" >&2
+    (cd "$tools" && npm ci --no-audit --no-fund --loglevel=error >&2)
+    printf '%s\n' "$want" > "$stamp"
+}
+
+[[ $# -ge 1 ]] || usage
+command="$1"
+shift
+case "$command" in
+    icons) bin="devkit-icons.mjs" ;;
+    precommit) bin="devkit-precommit.mjs" ;;
+    *) usage ;;
+esac
+
+require_node
+ensure_installed
+
+# The command runs in the app's repo root, which is where devkit looks for assets/brand/ and git.
+# DEVKIT_ICONS_RENDERER_DIR points devkit at the kit's renderer, since the app has no node_modules.
+export DEVKIT_ICONS_RENDERER_DIR="$tools"
+exec node "$modules/@dynamic-solutions-canada/devkit/bin/$bin" "$@"

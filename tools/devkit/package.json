@@ -1,0 +1,13 @@
+{
+  "name": "winui-app-kit-devkit-tools",
+  "private": true,
+  "description": "The devkit commands Windows app repos run through scripts/devkit, installed here so the apps keep no Node dependencies of their own (SCRIPT-1).",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.12 <25"
+  },
+  "dependencies": {
+    "@dynamic-solutions-canada/devkit": "git+https://github.com/Dynamic-Solutions-Canada/devkit.git#v0.20.3",
+    "@resvg/resvg-js": "2.6.2"
+  }
+}
