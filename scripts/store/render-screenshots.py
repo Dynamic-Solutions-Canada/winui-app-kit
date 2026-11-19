@@ -30,7 +30,8 @@ and the app's window focused and centred on the work area. Beside each <name>.pn
 Crop: nothing is composited, shaved or scaled. "window" takes an output-size rectangle centred on the
 window, moved only as far as needed to stay inside the work area (so the taskbar stays out); the window
 and a margin for its shadow must fit, or the crop fails. "tray" takes the bottom-right output-size
-rectangle of the screen, taskbar included, for a tray flyout. "bottom" takes the bottom strip of the
+rectangle of the screen, taskbar included, for a tray flyout; the window must be on screen, with its
+margin on the left and top (the crop's right and bottom are the screen's edges), or the crop fails. "bottom" takes the bottom strip of the
 screen, taskbar included, centred on the window and moved only as far as needed to stay on the screen,
 for a popup placed above the taskbar; the window and its margin must fit it, as for "window". The
 result is written as 8-bit RGB without alpha and with unfiltered rows. ImageMagick (cropping only) runs in a disposable container with a memory cap, so the host needs only Docker;
@@ -40,7 +41,7 @@ Check (no Docker) fails when:
   - an entry isn't dark, its capture has no sidecar, or the sidecar says the capture was scaled (scale
     other than 100), taken with apps or the system in light mode, without window effects, on another wallpaper, or at
     a size other than the PNG's own;
-  - the window doesn't fit the crop with its margin;
+  - the window doesn't fit the crop with its margin (for "tray", on its left and top, and on screen);
   - a screenshot is missing, isn't exactly the output size, or isn't 8-bit RGB without alpha;
   - a caption or alt text is empty, a PNG in the screenshots folder isn't in the manifest, there are
     fewer than 1 or more than 10, or the captions differ from the en-US screenshotCaptions in
@@ -149,9 +150,7 @@ def crop_box(sidecar: dict, crop: str, size: tuple[int, int]) -> tuple[int, int]
     screen, window, work = sidecar["screen"], sidecar["window"], sidecar["workArea"]
 
     if crop == "tray":
-        if screen["width"] < out_width or screen["height"] < out_height:
-            return f"the screen ({screen['width']} x {screen['height']}) is smaller than {out_width} x {out_height}"
-        return screen["width"] - out_width, screen["height"] - out_height
+        return tray_crop(screen, window, size)
 
     if crop == "bottom":
         return bottom_crop(screen, window, size)
@@ -164,11 +163,53 @@ def crop_box(sidecar: dict, crop: str, size: tuple[int, int]) -> tuple[int, int]
     top = min(max(centre_y - out_height // 2, work["y"]), work["y"] + work["height"] - out_height)
 
     # The window and the margin for its shadow must be inside the crop: never clip the app.
-    if (window["x"] - MARGIN < left or window["y"] - MARGIN < top
-            or window["x"] + window["width"] + MARGIN > left + out_width
-            or window["y"] + window["height"] + MARGIN > top + out_height):
+    if not margin_fits(window, (left, top), size, ("left", "top", "right", "bottom")):
         return (f"the window ({window['width']} x {window['height']}) and a {MARGIN} px margin don't fit a "
                 f"{out_width} x {out_height} crop; capture it smaller, centred on the work area")
+    return left, top
+
+
+def margin_fits(window: dict, corner: tuple[int, int], size: tuple[int, int], sides: tuple[str, ...]) -> bool:
+    """
+    Whether the window, with MARGIN px of desktop for its shadow on each of `sides` ("left", "top",
+    "right", "bottom"), lies inside the crop whose top-left is `corner` and whose size is `size`. A side
+    left out is not checked here; its caller decides what that edge needs instead.
+    """
+    left, top = corner
+    out_width, out_height = size
+    limits = {
+        "left": window["x"] - MARGIN >= left,
+        "top": window["y"] - MARGIN >= top,
+        "right": window["x"] + window["width"] + MARGIN <= left + out_width,
+        "bottom": window["y"] + window["height"] + MARGIN <= top + out_height,
+    }
+    return all(limits[side] for side in sides)
+
+
+def tray_crop(screen: dict, window: dict, size: tuple[int, int]) -> tuple[int, int] | str:
+    """
+    The "tray" crop's corner: the bottom-right output-size rectangle of the screen, taskbar included.
+    A tray flyout sits against the screen's corner by design, so the crop's right and bottom edges are
+    the screen's own: there the window only has to be on screen, since no output size can add desktop
+    beyond the screen. On the inner sides, left and top, the window and its margin must fit, or a tall
+    or wide flyout would lose its header (a 420 x 960 flyout in a 1366 x 768 crop did).
+    """
+    out_width, out_height = size
+    if screen["width"] < out_width or screen["height"] < out_height:
+        return f"the screen ({screen['width']} x {screen['height']}) is smaller than {out_width} x {out_height}"
+    left, top = screen["width"] - out_width, screen["height"] - out_height
+
+    if (window["x"] < 0 or window["y"] < 0
+            or window["x"] + window["width"] > screen["width"]
+            or window["y"] + window["height"] > screen["height"]):
+        return (f"the window ({window['width']} x {window['height']} at {window['x']}, {window['y']}) is not "
+                f"entirely on the screen; capture it where the app places it")
+    if not margin_fits(window, (left, top), size, ("left", "top")):
+        return (f"the window ({window['width']} x {window['height']}) and a {MARGIN} px margin don't fit the "
+                f"bottom-right {out_width} x {out_height} of the screen; set \"size\" to \"1920x1080\" in "
+                f"manifest.json (for a 1920 x 1080 capture), or capture the flyout smaller. \"size\" applies "
+                f"to every screenshot, and a \"window\" crop can't be as large as the screen, so a manifest "
+                f"that also has \"window\" crops needs the smaller flyout")
     return left, top
 
 
@@ -186,9 +227,7 @@ def bottom_crop(screen: dict, window: dict, size: tuple[int, int]) -> tuple[int,
     left = min(max(centre_x - out_width // 2, 0), screen["width"] - out_width)
     top = screen["height"] - out_height
 
-    if (window["x"] - MARGIN < left
-            or window["x"] + window["width"] + MARGIN > left + out_width
-            or window["y"] - MARGIN < top):
+    if not margin_fits(window, (left, top), size, ("left", "right", "top")):
         return (f"the window ({window['width']} x {window['height']}) and a {MARGIN} px margin don't fit the "
                 f"bottom {out_width} x {out_height} of the screen; capture it smaller, nearer the bottom and "
                 f"at least {MARGIN} px from the screen's sides")

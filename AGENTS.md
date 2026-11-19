@@ -28,6 +28,7 @@ The kit owns the plumbing below and nothing else: no app's pages, settings field
 | Checks, generators and the formatter apps run in `validate` | `scripts/format`, `scripts/check-localization.py`, `scripts/check-listing.py`, `scripts/check-gitignore`, `scripts/generate-notices.py` |
 | devkit's icon and pre-commit commands for apps, installed inside the kit | `scripts/devkit`, pinned in `tools/devkit/package-lock.json`, tested by `tests/devkit-tools/` |
 | Packaging and Windows build entry point for apps | `build/build-msix.ps1` (driven by each app's `windows-build.json`) with `build/package-output.ps1` (deliverable names, pruning) and `build/runtime-dependency.ps1` (the manifest's Windows App Runtime MinVersion gate), both tested by `tests/build/`, `build/languages.json`, `scripts/windows-build` |
+| Microsoft Store screenshot crops and checks for apps | `scripts/store/render-screenshots.py`, crop geometry tested by `tests/store-screenshots/` |
 | UI tour of an installed app, run in a VM through windows-build-tools' app-test recipe | `scripts/app-test/tour.ps1` |
 | Microsoft Store publishing for apps | `.github/workflows/store-publish.yml` and `credential-expiry.yml` (reusable), `scripts/store/`, tests and caller examples in `tests/store/`; `KIT_VERSION` in `store-publish.yml` moves with `<Version>` |
 
