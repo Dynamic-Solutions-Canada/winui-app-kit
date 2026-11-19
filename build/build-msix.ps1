@@ -6,7 +6,8 @@
     shared Windows build tooling (npm run build:desktop, package:desktop, install:desktop), which
     stages the app's source and runs this from the staged repo root.
 
-    1. Publishes the app self-contained, then any companion projects.
+    1. Publishes the app self-contained, then any companion projects, and fails when the manifest's
+       Windows App Runtime MinVersion is below the runtime the app restored (runtime-dependency.ps1).
     2. Assembles the layout: published files, compiled XAML, the stamped manifest, Images, extra folders.
     3. Builds one resources.pri for every declared language, including the manifest's translated
        strings from the app's JSON catalogs, and checks it.
@@ -66,6 +67,8 @@ Set-StrictMode -Version Latest
 
 # Deliverable naming and package_output pruning, kept in their own file so tests/build can check them.
 . (Join-Path $PSScriptRoot "package-output.ps1")
+# The Windows App Runtime gate (manifest MinVersion against the restored SDK), kept apart for the same reason.
+. (Join-Path $PSScriptRoot "runtime-dependency.ps1")
 
 # ---------------------------------------------------------------------------------------------------
 # Helpers
@@ -240,6 +243,15 @@ $publishArgs = @("publish", $projectPath, "-c", $Configuration, "-r", $rid, "-p:
     "--self-contained", "-p:PublishSingleFile=false", "-o", $publishDir)
 foreach ($property in $publishProperties.PSObject.Properties) { $publishArgs += "-p:$($property.Name)=$($property.Value)" }
 Invoke-Tool "dotnet publish $packageName" "dotnet" $publishArgs
+
+# Refuse a manifest whose Windows App Runtime MinVersion is below the runtime this build restored, so
+# a kit update that raises the SDK cannot ship a package that installs against the older framework.
+$assetsPath = (& dotnet msbuild $projectPath -getProperty:ProjectAssetsFile "-p:Platform=$Platform" | Out-String).Trim()
+if ($LASTEXITCODE -ne 0 -or -not $assetsPath) { throw "Could not find the restore output (ProjectAssetsFile) of $projectPath" }
+$runtime = Get-WindowsAppRuntimeRequirement $assetsPath
+$runtimeError = Test-WindowsAppRuntimeDependency $manifestSrc $runtime
+if ($runtimeError) { throw $runtimeError }
+Write-Host "  Windows App Runtime: $($runtime.Name) $($runtime.Version), manifest MinVersion is at least that"
 
 Write-Host "`n=== Assembling the layout ===" -ForegroundColor Cyan
 New-CleanDirectory $layoutDir
