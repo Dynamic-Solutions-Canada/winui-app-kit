@@ -38,6 +38,9 @@ updates:
       # The icon check compares rendered bytes, so the renderer moves only by hand, with every app's
       # icons regenerated in the same change.
       - dependency-name: "@resvg/resvg-js"
+      # devkit is pinned to a release tag and bumped by hand, following the consumer steps in its
+      # release notes. Dependabot misreads its git tags (it proposed v0.20.3 -> v0.17.1).
+      - dependency-name: "@dynamic-solutions-canada/devkit"
 
   - package-ecosystem: github-actions
     directory: "/"
