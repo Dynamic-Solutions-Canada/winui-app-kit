@@ -26,7 +26,8 @@ The kit owns the plumbing below and nothing else: no app's pages, settings field
 | Shared XAML (styles, settings shell, About page, Settings page rows), compiled by each app | `Xaml/`, with `Xaml/CompileCheck/` building it for the kit |
 | Shared build configuration for apps and the kit | `build/`, imported by the root `Directory.Build.props`, `Directory.Build.targets` and `Directory.Packages.props` |
 | Checks, generators and the formatter apps run in `validate` | `scripts/format`, `scripts/check-localization.py`, `scripts/check-listing.py`, `scripts/check-gitignore`, `scripts/generate-notices.py` |
-| Packaging and Windows build entry point for apps | `build/build-msix.ps1` (driven by each app's `windows-build.json`), `build/languages.json`, `scripts/windows-build` |
+| devkit's icon and pre-commit commands for apps, installed inside the kit | `scripts/devkit`, pinned in `tools/devkit/package-lock.json`, tested by `tests/devkit-tools/` |
+| Packaging and Windows build entry point for apps | `build/build-msix.ps1` (driven by each app's `windows-build.json`) with `build/package-output.ps1` (deliverable names, pruning; tested by `tests/build/`), `build/languages.json`, `scripts/windows-build` |
 | UI tour of an installed app, run in a VM through windows-build-tools' app-test recipe | `scripts/app-test/tour.ps1` |
 | Microsoft Store publishing for apps | `.github/workflows/store-publish.yml` and `credential-expiry.yml` (reusable), `scripts/store/`, tests and caller examples in `tests/store/`; `KIT_VERSION` in `store-publish.yml` moves with `<Version>` |
 
@@ -51,7 +52,7 @@ The kit owns the plumbing below and nothing else: no app's pages, settings field
 | `npm run validate` | The gate CI runs on Linux: `format:check` (whitespace, `.editorconfig` style and analyzers, every project including the test harnesses, through the shared `scripts/format`), `check:gitignore`, `check:l10n` (the kit's catalogs against its code, through the same script apps run) and `test` | That anything compiles for Windows |
 | `npm run format` | Rewrites files to the `.editorconfig` style | Anything; review the diff |
 | `npm run verify` | The library and the shared XAML compile for x64 and ARM64 in Release (warnings are errors), by building `Xaml/CompileCheck` through the shared Windows build tooling | Behaviour; needs the Windows build host |
-| `npm test` | Every portable harness under `tests/` passes (each has a README saying what it proves) | Windows-only behaviour: DPAPI, packaged paths, windows |
+| `npm test` | Every portable harness under `tests/` passes (each has a README saying what it proves); the devkit-tools test needs Node and network on its first run | Windows-only behaviour: DPAPI, packaged paths, windows |
 
 `scripts/dotnet` uses the host .NET SDK when there is one, otherwise the SDK container matching `global.json` (Docker needed). The same Windows compile runs in CI (`windows-compile`). Release and CI builds treat warnings as errors, and so does every app's Release build of the kit, so keep the kit warning-free.
 
