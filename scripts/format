@@ -5,7 +5,8 @@
 #   external/winui-app-kit/scripts/format --check  fail on any difference (used by `npm run validate`)
 #
 # Projects are found by walking the tree, never listed by hand. Submodules under external/ are never
-# formatted here (KIT-8), and neither are scratch copies under .artifacts/ or node_modules/.
+# formatted here (KIT-8), and neither are scratch copies under .artifacts/, git worktrees under
+# .worktrees/ (each formats itself from its own checkout) or node_modules/.
 #
 # One `dotnet format` pass can leave work for the next: inserting braces creates new whitespace to fix.
 # So a rewrite repeats until --verify-no-changes passes, at most MAX_PASSES times, and fails if the
@@ -25,7 +26,7 @@ fi
 
 mapfile -t projects < <(
     find . -name '*.csproj' \
-        -not -path './external/*' -not -path './.artifacts/*' -not -path '*/node_modules/*' \
+        -not -path './external/*' -not -path './.artifacts/*' -not -path './.worktrees/*' -not -path '*/node_modules/*' \
         -not -path '*/bin/*' -not -path '*/obj/*' | sort
 )
 if [[ ${#projects[@]} -eq 0 ]]; then
