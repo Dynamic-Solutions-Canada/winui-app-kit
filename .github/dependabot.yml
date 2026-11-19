@@ -2,11 +2,9 @@ version: 2
 
 updates:
   - package-ecosystem: nuget
-    # The library and the portable harnesses, not "/". Xaml/CompileCheck is a WinUI MSIX app project
-    # that cannot be evaluated on Dependabot's Linux runner; once it existed under "/", Dependabot closed
-    # its Windows App SDK PR as "no longer updatable" (PR 1, 2026-11-16). That cause is a hypothesis
-    # (the job log was not available); the live runs on 2026-11-17 found the SDK again once "/" was dropped.
-    # Every listed project imports build/WinUIAppKit.Packages.props, where the versions are updated.
+    # The library and the portable harnesses, not "/": Xaml/CompileCheck is a WinUI MSIX app project
+    # that Dependabot's Linux runner is not asked to evaluate. Every listed project imports
+    # build/WinUIAppKit.Packages.props, where the versions are updated.
     directories:
       - "/WinUIAppKit"
       - "/tests/WinUIAppKit.Settings.Tests"
@@ -15,6 +13,11 @@ updates:
       - "/tests/WinUIAppKit.Localization.Tests"
     schedule:
       interval: weekly
+    # A refresh of an open PR runs only in the folder of the file it changed (/build), which holds no
+    # project, so Dependabot finds nothing and closes the PR as "no longer updatable" (job logs of PR 1
+    # and PR 5). Automatic rebases are off so a PR stays open while main moves. A change to this file
+    # or "@dependabot recreate" still refreshes, and closes, it: take such an update by hand.
+    rebase-strategy: disabled
     groups:
       nuget:
         patterns: ["*"]
