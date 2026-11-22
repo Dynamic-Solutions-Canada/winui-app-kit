@@ -8,7 +8,8 @@ namespace WinUIAppKit.Hosting;
 /// Turns a resident app's <c>MainWindow</c> into the hidden host that owns its tray icon (TRAY-7, D-074):
 /// a 1x1 tool window parked off-screen, never in the taskbar or Alt+Tab, that cancels its own close.
 /// It also answers a second launch's "show yourself" message, and runs the app's exit steps before
-/// WinUI's orderly shutdown (<see cref="Application.Exit"/>).
+/// WinUI's orderly shutdown (<see cref="Application.Exit"/>), both when the app exits itself and when
+/// Windows ends the session (shut down, restart, sign out).
 /// </summary>
 public sealed class HostWindow
 {
@@ -19,7 +20,7 @@ public sealed class HostWindow
 
     private readonly Window _window;
     private readonly List<(string Name, Action Step)> _exitSteps = [];
-    private readonly SUBCLASSPROC? _wndProc;   // held in a field so the GC can't collect the delegate
+    private readonly SUBCLASSPROC _wndProc;   // held in a field so the GC can't collect the delegate
     private readonly int _showMessage;
     private bool _exiting;
 
@@ -43,9 +44,11 @@ public sealed class HostWindow
         if (showMessageName is not null)
         {
             _showMessage = RegisterWindowMessage(showMessageName);
-            _wndProc = WndProc;
-            SetWindowSubclass(Hwnd, _wndProc, SubclassId, 0);
         }
+
+        // Always subclassed, even without a show message, so the host hears the session ending.
+        _wndProc = WndProc;
+        SetWindowSubclass(Hwnd, _wndProc, SubclassId, 0);
     }
 
     /// <summary>The host window's handle, for <see cref="Tray.TrayIcon"/> and native menus.</summary>
@@ -56,6 +59,14 @@ public sealed class HostWindow
     /// decides what showing means (its settings window, its flyout).
     /// </summary>
     public event Action? ShowRequested;
+
+    /// <summary>
+    /// Whether the exit steps run when Windows ends the session (shut down, restart, sign out, or Windows
+    /// closing the app to update files it uses). On by default; an app turns it off only when its steps must not run
+    /// then. Without it, the process ends with no exit steps at all. Read when the message arrives, so
+    /// it can change at any time.
+    /// </summary>
+    public bool ExitOnSessionEnd { get; set; } = true;
 
     /// <summary>
     /// Add a step to run when the app exits, such as saving settings, closing a connection,
@@ -86,13 +97,29 @@ public sealed class HostWindow
     /// </summary>
     public void Exit()
     {
-        if (_exiting)
+        if (!BeginExit("Exit requested"))
         {
             return;
         }
 
+        ShutDown();
+    }
+
+    /// <summary>
+    /// Mark the app as exiting, log <paramref name="reason"/>, then run every exit step in order (a
+    /// failing step is logged and the rest still run) and flush the log.
+    /// </summary>
+    /// <param name="reason">The log line saying why the app is exiting.</param>
+    /// <returns>False when an exit had already begun, in which case nothing ran.</returns>
+    private bool BeginExit(string reason)
+    {
+        if (_exiting)
+        {
+            return false;
+        }
+
         _exiting = true;
-        Logger.Info("Exit requested");
+        Logger.Info(reason);
         foreach (var (name, step) in _exitSteps)
         {
             try
@@ -106,7 +133,15 @@ public sealed class HostWindow
         }
 
         NLog.LogManager.Flush();
+        return true;
+    }
 
+    /// <summary>
+    /// Shut WinUI down in order once the exit steps have run: start the backstop that ends a stalled
+    /// shutdown, close the open settings windows, then <see cref="Application.Exit"/>.
+    /// </summary>
+    private void ShutDown()
+    {
         // A background thread never keeps the process alive, so this only fires if the shutdown stalls.
         var backstop = new Thread(() =>
         {
@@ -150,6 +185,39 @@ public sealed class HostWindow
             return IntPtr.Zero;
         }
 
+        // wParam FALSE means a shutdown was cancelled, which needs nothing: let it fall through.
+        if (msg == WM_ENDSESSION && wParam != IntPtr.Zero && ExitOnSessionEnd)
+        {
+            OnSessionEnd(lParam);
+            return IntPtr.Zero;
+        }
+
         return DefSubclassProc(hwnd, msg, wParam, lParam);
+    }
+
+    /// <summary>
+    /// Windows is ending the session, or closing the app so an update can replace
+    /// files it uses (WM_ENDSESSION with wParam TRUE; ENDSESSION_CLOSEAPP, from Restart Manager).
+    /// <para>
+    /// The exit steps run here, before the window procedure returns, because Windows may end the
+    /// process as soon as it does, and waits only a few seconds for it to. The WinUI shutdown that
+    /// follows closes windows, so it is deferred to the dispatcher; when the session really is ending,
+    /// Windows usually ends the process first, which is fine once the steps have run. When Restart Manager
+    /// closes the app without ending the session, that deferred shutdown is what ends it.
+    /// </para>
+    /// </summary>
+    /// <param name="lParam">The WM_ENDSESSION flags (ENDSESSION_CLOSEAPP, _CRITICAL, _LOGOFF), logged as is.</param>
+    private void OnSessionEnd(IntPtr lParam)
+    {
+        if (!BeginExit($"Windows is ending the session (flags 0x{lParam:X}); running the exit steps"))
+        {
+            return;
+        }
+
+        // A refused enqueue would leave the app running with its tray icon gone and no backstop.
+        if (!_window.DispatcherQueue.TryEnqueue(ShutDown))
+        {
+            ShutDown();
+        }
     }
 }
