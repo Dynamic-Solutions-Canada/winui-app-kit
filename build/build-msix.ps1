@@ -41,7 +41,8 @@
                                  for the same platform and copied into the layout after the app.
                                  Optional per companion: "builder": "msbuild" builds with Visual
                                  Studio's MSBuild (for UWP XAML, whose compiler ships only there),
-                                 "requires": [Visual Studio component ids] that installation must have,
+                                 "requires": [Visual Studio component ids] that installation must have
+                                 (a nested array is alternatives, any one of which will do),
                                  and "xaml": true copies its compiled XAML (.xbf) beside it, keeping
                                  paths (a companion keeps its XAML in a folder of its own).
       manifest_strings           {"catalog_dir": "..."}: the app's JSON catalogs, from which the
@@ -74,6 +75,8 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot "package-output.ps1")
 # The Windows App Runtime gate (manifest MinVersion against the restored SDK), kept apart for the same reason.
 . (Join-Path $PSScriptRoot "runtime-dependency.ps1")
+# Finding Visual Studio's MSBuild for companions, and their "requires" alternatives, kept apart for the same reason.
+. (Join-Path $PSScriptRoot "visual-studio.ps1")
 
 # ---------------------------------------------------------------------------------------------------
 # Helpers
@@ -144,19 +147,6 @@ function Find-SdkBin([string]$HostArch) {
     return $null
 }
 
-# Visual Studio's MSBuild.exe for the host architecture, from an installation that has MSBuild and every
-# component in $Requires (Visual Studio Installer component ids). Throws naming the components to add.
-function Find-VisualStudioMSBuild([string[]]$Requires) {
-    $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
-    if (-not (Test-Path $vswhere)) { throw "No Visual Studio installation (vswhere.exe not found); install Visual Studio Build Tools with $($Requires -join ', ')." }
-    $needs = @("Microsoft.Component.MSBuild") + $Requires
-    $installation = & $vswhere -latest -products * -requires $needs -property installationPath
-    if (-not $installation) { throw "No Visual Studio installation has $($needs -join ', '); add them with the Visual Studio Installer." }
-    $binArch = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "arm64" } else { "amd64" }
-    $msbuild = Join-Path $installation "MSBuild\Current\Bin\$binArch\MSBuild.exe"
-    if (-not (Test-Path $msbuild)) { throw "MSBuild.exe not found at $msbuild" }
-    return $msbuild
-}
 
 # Sign one file with the trusted certificate and a timestamp.
 function Invoke-Sign([string]$Path) {
