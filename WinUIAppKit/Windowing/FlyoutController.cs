@@ -263,7 +263,19 @@ public sealed class FlyoutController
         SetWindowPos(_hwnd, IntPtr.Zero, left, top, w, h, SWP_NOZORDER | SWP_NOACTIVATE | extraFlags);
     }
 
-    /// <summary>Placement rules: beside a side taskbar, above a bottom one, below a top one, clamped to the work area.</summary>
+    /// <summary>
+    /// Placement rules: beside a side taskbar, above a bottom one, below a top one, then kept inside the
+    /// work area with the same gap it keeps from the taskbar, so a flyout opened from an icon near a
+    /// screen corner sits clear of the edge with its shadow showing, as Windows' own flyouts do.
+    /// </summary>
+    /// <param name="ax">The anchor (the tray icon click), x in physical pixels.</param>
+    /// <param name="ay">The anchor, y in physical pixels.</param>
+    /// <param name="w">The flyout's width in physical pixels.</param>
+    /// <param name="h">The flyout's height in physical pixels.</param>
+    /// <param name="mon">The monitor's bounds; the work area differs from it on the taskbar's side.</param>
+    /// <param name="work">The monitor's work area (the screen without the taskbar).</param>
+    /// <param name="scale">The monitor's scale factor (1.0 at 100%).</param>
+    /// <returns>The flyout's top-left corner in physical pixels.</returns>
     private static (int left, int top) Placement(int ax, int ay, int w, int h, RECT mon, RECT work, double scale)
     {
         int gap = (int)Math.Max(4, 8 * scale);
@@ -296,9 +308,29 @@ public sealed class FlyoutController
             top = ay - h - gap;   // e.g. an icon in the tray overflow popup
         }
 
-        left = Math.Clamp(left, work.Left, Math.Max(work.Left, work.Right - w));
-        top = Math.Clamp(top, work.Top, Math.Max(work.Top, work.Bottom - h));
+        left = ClampInside(left, w, work.Left, work.Right, gap);
+        top = ClampInside(top, h, work.Top, work.Bottom, gap);
         return (left, top);
+    }
+
+    /// <summary>
+    /// Keep one edge of the flyout (its left or top) so the flyout lies between <paramref name="start"/>
+    /// and <paramref name="end"/> with <paramref name="gap"/> free on both sides. A flyout too large for
+    /// the gaps keeps only the work area's edges, and one larger than the work area starts at its start.
+    /// </summary>
+    /// <param name="position">The preferred left or top, in physical pixels.</param>
+    /// <param name="size">The flyout's width or height.</param>
+    /// <param name="start">The work area's left or top.</param>
+    /// <param name="end">The work area's right or bottom.</param>
+    /// <param name="gap">Space to keep from each edge when the flyout fits with it.</param>
+    private static int ClampInside(int position, int size, int start, int end, int gap)
+    {
+        if (end - start - size >= gap * 2)
+        {
+            return Math.Clamp(position, start + gap, end - size - gap);
+        }
+
+        return Math.Clamp(position, start, Math.Max(start, end - size));
     }
 
     private IntPtr WndProc(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam, UIntPtr id, UIntPtr refData)
