@@ -77,18 +77,42 @@ public sealed class HostWindow
     /// <param name="step">The work to do. It runs on the calling thread before the process ends.</param>
     public void AddExitStep(string name, Action step) => _exitSteps.Add((name, step));
 
+    /// <summary>Windows <see cref="Exit"/> closes before WinUI's shutdown; each leaves the list when it closes.</summary>
+    private static readonly List<Window> WindowsToClose = [];
+
+    /// <summary>
+    /// Have <see cref="Exit"/> close <paramref name="window"/> before shutting WinUI down. WinUI's
+    /// <see cref="Application.Exit"/> never finishes while a window it did not close is still open, and
+    /// it does not close windows that were created but never activated, such as a flyout or an
+    /// on-screen popup that is only ever shown without focus. Such windows must be registered here, or
+    /// every exit waits for the backstop. The kit registers its own (settings windows, the flyout);
+    /// call it for any other window the app keeps open. A window that closes earlier drops out, and
+    /// registering one twice is harmless. Call it on the UI thread.
+    /// </summary>
+    /// <param name="window">A window the app keeps for its lifetime.</param>
+    public static void CloseOnExit(Window window)
+    {
+        if (WindowsToClose.Contains(window))
+        {
+            return;
+        }
+
+        WindowsToClose.Add(window);
+        window.Closed += (_, _) => WindowsToClose.Remove(window);
+    }
+
     /// <summary>How long the orderly shutdown may take before the process is ended anyway.</summary>
     private static readonly TimeSpan ShutdownGrace = TimeSpan.FromSeconds(5);
 
     /// <summary>
     /// Exit the app: run every exit step (a failing step is logged and the rest still run), flush the
-    /// log, close the open settings windows, then shut WinUI down in order with
+    /// log, close the windows registered with <see cref="CloseOnExit"/>, then shut WinUI down in order with
     /// <see cref="Application.Exit"/>, which ends the message loop and the process.
     /// <para>
     /// Ending the process outright from the UI thread (<see cref="Environment.Exit(int)"/>) leaves the
     /// dispatcher and composition objects to the OS, and Windows App SDK 2 on Windows 10 answers that with
-    /// a CoreMessaging fail-fast. <see cref="Application.Exit"/> stalls while a settings window is open, so
-    /// those are closed first. If the shutdown still hasn't ended the process within
+    /// a CoreMessaging fail-fast. <see cref="Application.Exit"/> never finishes while one of those windows
+    /// is open, so they are closed first. If the shutdown still hasn't ended the process within
     /// <see cref="ShutdownGrace"/> (a window of the app's own that stays open, say), it is ended from a
     /// background thread, which does not crash, and the log says so.
     /// </para>
@@ -139,7 +163,7 @@ public sealed class HostWindow
 
     /// <summary>
     /// Shut WinUI down in order once the exit steps have run: start the backstop that ends a stalled
-    /// shutdown, close the open settings windows, then <see cref="Application.Exit"/>.
+    /// shutdown, close the windows registered with <see cref="CloseOnExit"/>, then <see cref="Application.Exit"/>.
     /// </summary>
     private void ShutDown()
     {
@@ -157,9 +181,17 @@ public sealed class HostWindow
         };
         backstop.Start();
 
-        foreach (var window in Windowing.WindowChrome.OpenSettingsWindows.ToList())
+        foreach (var window in WindowsToClose.ToList())
         {
-            window.Close();
+            try
+            {
+                window.Close();
+            }
+            catch (Exception ex)
+            {
+                // A window already torn down can refuse; the rest still close.
+                Logger.Warn(ex, "Could not close a window before exit; continuing");
+            }
         }
 
         Application.Current.Exit();
