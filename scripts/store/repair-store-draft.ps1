@@ -4,13 +4,19 @@ Replaces the packages in one explicitly selected Store draft without committing 
 .DESCRIPTION
 Used after a submission is withdrawn for an incomplete architecture upload. It
 preserves the listing, availability, and publication settings in the draft.
+
+With -AssetsPath (store-publish's screenshots input), it also replaces every listing's screenshots with
+the app's store-assets set, as set-store-screenshots.ps1 does, and uploads one archive holding the
+corrected package and the images, since the draft takes a single upload. Logos are kept.
 #>
 param(
     [Parameter(Mandatory)][ValidatePattern('^[A-Z0-9]+$')][string]$AppId,
     [Parameter(Mandatory)][ValidatePattern('^[0-9]+$')][string]$SubmissionId,
     # Empty for a free app: pricing is left as it is.
     [ValidatePattern('^(Tier[0-9]+)?$')][string]$PriceId = '',
-    [Parameter(Mandatory)][string]$UploadPath
+    [Parameter(Mandatory)][string]$UploadPath,
+    # The app's store-assets folder, when the run owns the listing screenshots; empty leaves them alone.
+    [string]$AssetsPath = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -50,11 +56,27 @@ $draft.applicationPackages = @($draft.applicationPackages) + @(@{
 })
 if ($PriceId) { $draft.pricing.priceId = $PriceId }
 
-$updated = Invoke-RestMethod -Method Put -Uri $uri -Headers $headers -ContentType 'application/json' -Body ($draft | ConvertTo-Json -Depth 100)
+# Owning the screenshots: plan and build the one archive (package plus images) before any change.
+$sendPath = $UploadPath
+$work = $null
+$plan = $null
+if ($AssetsPath) {
+    $work = Join-Path ([IO.Path]::GetTempPath()) ('store-repair-' + [guid]::NewGuid().ToString('N'))
+    $null = New-Item -ItemType Directory -Path $work -Force
+    $plan = & (Join-Path $PSScriptRoot 'resolve-store-screenshots.ps1') -AssetsPath $AssetsPath -ListingLocales @($draft.listings.PSObject.Properties.Name)
+    $sendPath = & (Join-Path $PSScriptRoot 'new-store-upload-archive.ps1') -UploadPath $UploadPath -Images $plan.Files -ArchivePath (Join-Path $work 'store-upload.zip')
+    $draft = & (Join-Path $PSScriptRoot 'merge-store-screenshots.ps1') -Draft $draft -Plan $plan
+}
+
 try {
-    Invoke-WebRequest -Method Put -Uri $updated.fileUploadUrl -InFile $UploadPath -ContentType 'application/zip' -Headers @{ 'x-ms-blob-type' = 'BlockBlob' } | Out-Null
-} catch {
-    throw 'Store bundle upload failed. Inspect the pending draft before retrying.'
+    $updated = Invoke-RestMethod -Method Put -Uri $uri -Headers $headers -ContentType 'application/json' -Body ($draft | ConvertTo-Json -Depth 100)
+    try {
+        Invoke-WebRequest -Method Put -Uri $updated.fileUploadUrl -InFile $sendPath -ContentType 'application/zip' -Headers @{ 'x-ms-blob-type' = 'BlockBlob' } | Out-Null
+    } catch {
+        throw 'Store bundle upload failed. Inspect the pending draft before retrying.'
+    }
+} finally {
+    if ($work) { Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue }
 }
 
 $verified = Invoke-RestMethod -Uri $uri -Headers $headers
@@ -63,5 +85,7 @@ if ($PriceId -and $verified.pricing.priceId -ne $PriceId) { throw 'The Store did
 if (@($verified.applicationPackages | Where-Object { $_.fileName -eq $fileName -and $_.fileStatus -eq 'PendingUpload' }).Count -ne 1) {
     throw 'The Store did not retain the corrected bundle entry.'
 }
+if ($plan) { & (Join-Path $PSScriptRoot 'confirm-store-screenshots.ps1') -Submission $verified -Plan $plan }
 $tier = if ($PriceId) { " at $PriceId" } else { '' }
-Write-Output "Draft $SubmissionId staged with $fileName$tier; NOT committed."
+$shots = if ($plan) { ' and the store-assets screenshots' } else { '' }
+Write-Output "Draft $SubmissionId staged with $fileName$tier$shots; NOT committed."

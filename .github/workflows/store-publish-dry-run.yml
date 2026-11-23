@@ -11,6 +11,7 @@ on:
       - '.github/workflows/store-publish.yml'
       - '.github/workflows/store-publish-dry-run.yml'
       - 'scripts/store/**'
+      - 'tests/store/fixtures/store-assets/**'
       - 'build/build-msix.ps1'
       - 'Xaml/CompileCheck/**'
   pull_request:
@@ -18,6 +19,7 @@ on:
       - '.github/workflows/store-publish.yml'
       - '.github/workflows/store-publish-dry-run.yml'
       - 'scripts/store/**'
+      - 'tests/store/fixtures/store-assets/**'
       - 'build/build-msix.ps1'
       - 'Xaml/CompileCheck/**'
 
@@ -36,6 +38,10 @@ jobs:
       kit_path: '.'
       notes_dir: release-notes
       dry_run: true
+      # Proves the screenshots path up to the Store call: every locale planned from a fixture store-assets
+      # (a per-locale hero and a shared screenshot), and the package and images archived together.
+      screenshots: true
+      store_assets: tests/store/fixtures/store-assets
       # Proves the build secret path: a fixture value (not a secret) must reach pre_build and packaging.
       build_secret_env_name: KitDryRunBuildSecret
       pre_build: |

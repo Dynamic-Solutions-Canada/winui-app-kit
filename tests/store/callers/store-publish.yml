@@ -77,6 +77,9 @@ jobs:
       failed_upload: ${{ inputs.failed_upload || '' }}
       hold_publication: ${{ github.event_name == 'workflow_dispatch' && inputs.hold_publication }}
       inspect_draft: ${{ inputs.inspect_draft || '' }}
+      # Opt in to replace every listing's screenshots with store-assets (the hero first, then the shared
+      # screenshots, captioned per locale); logos are kept. Try it first on a draft, checked in Partner Center.
+      # screenshots: true
       # An app whose build compiles in one secret names the variable its build reads, and passes the
       # secrets explicitly (not inherit) with BUILD_SECRET mapped from its own secret:
       # build_secret_env_name: 'MyBuildProperty'

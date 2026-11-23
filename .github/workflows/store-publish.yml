@@ -58,6 +58,14 @@ on:
         description: 'With submit_draft: hold the release for manual publication in Partner Center, and commit only if the hold and price are kept'
         type: boolean
         default: false
+      screenshots:
+        description: "Replace every listing's screenshots with the app's store-assets set (hero first, then the shared screenshots, captioned per locale); off leaves the listing images alone"
+        type: boolean
+        default: false
+      store_assets:
+        description: "The app's store-assets folder, read when screenshots is on"
+        type: string
+        default: 'store-assets'
       kit_path:
         description: "Path of the WinUI App Kit submodule in the caller's repo"
         type: string
@@ -288,6 +296,19 @@ jobs:
         run: |
           & (Join-Path $env:KIT_PATH 'scripts/store/build-store-upload.ps1') -AppName $env:NAME -OutputDirectory (Join-Path $env:GITHUB_WORKSPACE $env:OUTPUT) -Version $env:VERSION
 
+      # Opt-in: the run owns the listing screenshots. Plan every locale and build the upload archive now,
+      # in a dry run too, so a missing image or caption stops the run before any Store call.
+      - name: Check Store screenshots
+        if: inputs.screenshots
+        shell: pwsh
+        env:
+          KIT_PATH: ${{ inputs.kit_path }}
+          OUTPUT: ${{ steps.app.outputs.package_output }}
+          UPLOAD: ${{ steps.app.outputs.upload }}
+          STORE_ASSETS: ${{ inputs.store_assets }}
+        run: |
+          & (Join-Path $env:KIT_PATH 'scripts/store/set-store-screenshots.ps1') -PlanOnly -UploadPath (Join-Path (Join-Path $env:GITHUB_WORKSPACE $env:OUTPUT) $env:UPLOAD) -AssetsPath $env:STORE_ASSETS
+
       - name: Dry run summary
         if: inputs.dry_run
         shell: pwsh
@@ -298,15 +319,18 @@ jobs:
           NOTES: ${{ steps.app.outputs.notes }}
           TIER: ${{ inputs.price_tier }}
           NO_COMMIT: ${{ github.event_name == 'push' || inputs.no_commit }}
+          SCREENSHOTS: ${{ inputs.screenshots }}
+          STORE_ASSETS: ${{ inputs.store_assets }}
         run: |
           $upload = Get-Item (Join-Path (Join-Path $env:GITHUB_WORKSPACE $env:OUTPUT) $env:UPLOAD)
           $tier = if ($env:TIER) { $env:TIER } else { 'unchanged (free)' }
           $mode = if ($env:NO_COMMIT -eq 'true') { 'a draft, not committed' } else { 'committed for certification' }
+          $shots = if ($env:SCREENSHOTS -eq 'true') { "replacing every listing's screenshots from $env:STORE_ASSETS" } else { 'leaving the listing images alone' }
           @(
             '## Store publish dry run'
             ''
             "Would upload $($upload.Name) ($([math]::Round($upload.Length / 1MB, 1)) MB) to Store product $env:PRODUCT,"
-            "with the notes in $env:NOTES, price tier $tier, as $mode."
+            "with the notes in $env:NOTES, price tier $tier, as $mode, $shots."
             ''
             'Stopped here: no Store CLI was installed and no token or Store API call was made.'
           ) -join "`n" >> $env:GITHUB_STEP_SUMMARY
@@ -393,6 +417,8 @@ jobs:
           NOTES: ${{ steps.app.outputs.notes }}
           WINDOWS_BUILD_JSON: ${{ inputs.windows_build_json }}
           VERSION: ${{ steps.app.outputs.version }}
+          SCREENSHOTS: ${{ inputs.screenshots }}
+          STORE_ASSETS: ${{ inputs.store_assets }}
           AZURE_AD_TENANT_ID: ${{ secrets.AZURE_AD_TENANT_ID }}
           AZURE_AD_APPLICATION_CLIENT_ID: ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}
           AZURE_AD_APPLICATION_SECRET: ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
@@ -404,6 +430,10 @@ jobs:
           & msstore @publishArgs
           if ($LASTEXITCODE -ne 0) {
             throw "Store publishing failed (exit $LASTEXITCODE). Review the submission in Partner Center."
+          }
+          # Screenshots go before the notes: they resend the package with the images in one archive.
+          if ($env:SCREENSHOTS -eq 'true') {
+            & (Join-Path $env:KIT_PATH 'scripts/store/set-store-screenshots.ps1') -AppId $env:PRODUCT -UploadPath (Join-Path (Join-Path $env:GITHUB_WORKSPACE $env:OUTPUT) $env:UPLOAD) -AssetsPath $env:STORE_ASSETS
           }
           $output = & (Join-Path $env:KIT_PATH 'scripts/store/set-store-release-notes.ps1') -AppId $env:PRODUCT -UploadFileName $env:UPLOAD -NotesPath $env:NOTES -WindowsBuildJson $env:WINDOWS_BUILD_JSON -Commit:($env:NO_COMMIT -ne 'true')
           $output | Write-Output
@@ -428,12 +458,15 @@ jobs:
           UPLOAD: ${{ steps.app.outputs.upload }}
           SUBMISSION_ID: ${{ inputs.repair_draft }}
           NO_COMMIT: ${{ inputs.no_commit }}
+          SCREENSHOTS: ${{ inputs.screenshots }}
+          STORE_ASSETS: ${{ inputs.store_assets }}
           AZURE_AD_TENANT_ID: ${{ secrets.AZURE_AD_TENANT_ID }}
           AZURE_AD_APPLICATION_CLIENT_ID: ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}
           AZURE_AD_APPLICATION_SECRET: ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
         run: |
           if ($env:NO_COMMIT -ne 'true') { throw 'Repairing a draft requires no_commit.' }
-          & (Join-Path $env:KIT_PATH 'scripts/store/repair-store-draft.ps1') -AppId $env:PRODUCT -SubmissionId $env:SUBMISSION_ID -PriceId $env:TIER -UploadPath (Join-Path (Join-Path $env:GITHUB_WORKSPACE $env:OUTPUT) $env:UPLOAD)
+          $assets = if ($env:SCREENSHOTS -eq 'true') { $env:STORE_ASSETS } else { '' }
+          & (Join-Path $env:KIT_PATH 'scripts/store/repair-store-draft.ps1') -AppId $env:PRODUCT -SubmissionId $env:SUBMISSION_ID -PriceId $env:TIER -UploadPath (Join-Path (Join-Path $env:GITHUB_WORKSPACE $env:OUTPUT) $env:UPLOAD) -AssetsPath $assets
 
   submit:
     needs: gate
