@@ -32,6 +32,30 @@
   </Target>
 
   <!--
+    Windows ML natives in framework-dependent packages. Microsoft.WindowsAppSDK pulls in
+    Microsoft.WindowsAppSDK.ML, whose _SuppressWindowsMLNativeCopyLocal target removes
+    onnxruntime.dll, DirectML.dll and Microsoft.Windows.AI.MachineLearning.dll from the build's copy-local
+    list when the app is framework-dependent, because the Windows App Runtime framework supplies them.
+    dotnet publish builds its list from _ResolvedCopyLocalBuildAssets, which the SDK filled before that
+    removal, so the natives came back into every MSIX (about 17.7 MB compressed). This makes publish
+    agree with the build: it drops each Microsoft.Windows.AI.MachineLearning native the suppression took
+    out of ReferenceCopyLocalPaths, and keeps whatever Microsoft's target kept app-local. It never runs
+    without that target, so self-contained apps and apps without the ML package are untouched.
+    tests/build/ml-publish.Tests.ps1 fails when this is no longer needed, so it can be removed then.
+    _WinUIAppKitKeepMLPublishNatives is for that test only.
+  -->
+  <Target Name="WinUIAppKitPublishWithoutFrameworkMLNatives"
+          AfterTargets="_SuppressWindowsMLNativeCopyLocal"
+          Condition="'$(WindowsAppSDKSelfContained)' != 'true' And '$(MicrosoftWindowsAppSDKPackageDir)' != '' And '$(_WinUIAppKitKeepMLPublishNatives)' != 'true'">
+    <ItemGroup>
+      <_WinUIAppKitSuppressedMLNative Include="@(_ResolvedCopyLocalBuildAssets)"
+                                      Condition="'%(_ResolvedCopyLocalBuildAssets.NuGetPackageId)' == 'Microsoft.Windows.AI.MachineLearning' And '%(_ResolvedCopyLocalBuildAssets.AssetType)' == 'native'" />
+      <_WinUIAppKitSuppressedMLNative Remove="@(ReferenceCopyLocalPaths)" />
+      <_ResolvedCopyLocalBuildAssets Remove="@(_WinUIAppKitSuppressedMLNative)" />
+    </ItemGroup>
+  </Target>
+
+  <!--
     The shared NLog config (LOG-1, LOG-2), linked from the kit so apps never keep their own copy.
     Added to app executables only; an app that must not ship it sets WinUIAppKitIncludeNLogConfig to false.
     The app names its data folder at startup with AppLogging.UseDataFolder before it logs anything.
