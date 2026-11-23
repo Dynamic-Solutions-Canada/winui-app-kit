@@ -30,6 +30,7 @@ function Reset-Fixture {
     $global:uploads = 0
     $global:uploadedEntries = @()
     $global:dropImages = $false
+    $global:reorder = $false
 }
 function global:Invoke-RestMethod {
     param($Method, $Uri, $Headers, $Body, $ContentType)
@@ -39,6 +40,11 @@ function global:Invoke-RestMethod {
             $global:puts++
             $global:fixture = $Body | ConvertFrom-Json
             if ($global:dropImages) { $global:fixture.listings.'fr-fr'.baseListing.images = @() }
+            # The order the DisplaySwitchr update hit: removed screenshots ahead of the new set.
+            if ($global:reorder) {
+                $images = @($global:fixture.listings.'en-us'.baseListing.images)
+                $global:fixture.listings.'en-us'.baseListing.images = @($images | Sort-Object { $_.fileStatus -ne 'PendingDelete' })
+            }
             return $global:fixture
         }
         return $global:fixture
@@ -83,6 +89,8 @@ try {
     Check (($us.description -join '|') -eq 'Everything from the tray.|Settings.') 'en-us: captions from listings.json, in order'
     Check (($global:fixture.listings.'en-us'.baseListing.images | Where-Object fileName -EQ 'old-1.png').fileStatus -eq 'PendingDelete') 'the old screenshot is removed'
     Check (($global:fixture.listings.'en-us'.baseListing.images | Where-Object imageType -EQ 'StoreLogo9x16').fileStatus -eq 'Uploaded') 'the logo is kept'
+    $order = @($global:fixture.listings.'en-us'.baseListing.images | ForEach-Object { "$($_.fileName):$($_.fileStatus)" })
+    Check (($order -join ',') -eq 'logo.png:Uploaded,en-us/00-hero-dark.png:PendingUpload,en-us/01-settings-dark.png:PendingUpload,old-1.png:PendingDelete') 'display order: logo, the new set in order, then the removed screenshots'
     Check ((Pending 'fr-fr').description[0] -eq 'Tout depuis la zone de notification.') 'fr-fr: French captions'
     Check (@($global:fixture.listings.'fr-fr'.baseListing.images).Count -eq 2) 'fr-fr: an empty image list gains only the new screenshots'
     Check ((Pending 'en-gb').Count -eq 2 -and "$output" -match 'en-US screenshots for en-gb') 'a listing outside listings.json takes the en-US set and is reported'
@@ -101,6 +109,13 @@ try {
     $failed = $false
     try { & $scriptPath -AppId 9TESTAPP0001 -UploadPath $upload -AssetsPath $assets } catch { $failed = $_.Exception.Message -match 'fr-fr' }
     Check $failed 'screenshots the Store did not keep fail the run'
+
+    # Every screenshot present but in the wrong display order fails too.
+    Reset-Fixture
+    $global:reorder = $true
+    $failed = $false
+    try { & $scriptPath -AppId 9TESTAPP0001 -UploadPath $upload -AssetsPath $assets } catch { $failed = $_.Exception.Message -match 'display order, for en-us' }
+    Check $failed 'screenshots kept in the wrong display order fail the run'
 
     # A draft that does not expect this package is never changed.
     Reset-Fixture
