@@ -11,6 +11,7 @@ updates:
       - "/tests/WinUIAppKit.Startup.Tests"
       - "/tests/WinUIAppKit.Updates.Tests"
       - "/tests/WinUIAppKit.Localization.Tests"
+      - "/tests/WinUIAppKit.Osd.Tests"
     schedule:
       interval: weekly
     # A refresh of an open PR runs only in the folder of the file it changed (/build), which holds no

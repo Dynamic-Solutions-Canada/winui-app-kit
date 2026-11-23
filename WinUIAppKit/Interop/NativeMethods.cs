@@ -79,6 +79,12 @@ public static class NativeMethods
     public const uint SWP_NOSIZE = 0x1, SWP_NOMOVE = 0x2, SWP_NOZORDER = 0x4, SWP_NOACTIVATE = 0x10,
                       SWP_SHOWWINDOW = 0x40;
 
+    /// <summary>SetWindowPos's "insert after" for the topmost band.</summary>
+    public static readonly IntPtr HWND_TOPMOST = new(-1);
+
+    /// <summary>SetLayeredWindowAttributes: use the alpha value.</summary>
+    public const uint LWA_ALPHA = 0x2;
+
     public const int SM_CXICON = 11, SM_CXSMICON = 49, SM_XVIRTUALSCREEN = 76, SM_YVIRTUALSCREEN = 77;
 
     public const int DWMWA_CLOAK = 13, DWMWA_WINDOW_CORNER_PREFERENCE = 33, DWMWCP_ROUND = 2;
@@ -110,6 +116,7 @@ public static class NativeMethods
     [DllImport("user32.dll")] public static extern int GetSystemMetrics(int nIndex);
     [DllImport("user32.dll")] public static extern int GetSystemMetricsForDpi(int nIndex, uint dpi);
     [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
+    [DllImport("user32.dll")] public static extern bool SetLayeredWindowAttributes(IntPtr hwnd, uint crKey, byte bAlpha, uint dwFlags);
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] public static extern IntPtr GetWindowLongPtr(IntPtr hWnd, int nIndex);
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")] public static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr LoadImage(IntPtr hInst, string name, uint type, int cx, int cy, uint fuLoad);

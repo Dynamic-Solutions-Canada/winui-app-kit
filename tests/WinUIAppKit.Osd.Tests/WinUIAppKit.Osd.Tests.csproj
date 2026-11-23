@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Portable harness for the on-screen display's placement and fade. It links the one production file
+    that holds that arithmetic, so it runs on Linux.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="../../WinUIAppKit/Windowing/OsdLayout.cs" Link="Linked/OsdLayout.cs" />
+  </ItemGroup>
+</Project>
