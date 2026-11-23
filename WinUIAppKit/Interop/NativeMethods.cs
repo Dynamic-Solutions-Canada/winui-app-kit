@@ -65,7 +65,7 @@ public static class NativeMethods
 
     public const int WM_LBUTTONUP = 0x202, WM_LBUTTONDBLCLK = 0x203, WM_RBUTTONUP = 0x205, WM_CONTEXTMENU = 0x7B;
     public const uint WM_NULL = 0x0, WM_KEYDOWN = 0x100, WM_SETICON = 0x80, WM_DISPLAYCHANGE = 0x7E,
-                      WM_DPICHANGED = 0x02E0, WM_SETTINGCHANGE = 0x001A;
+                      WM_DPICHANGED = 0x02E0, WM_SETTINGCHANGE = 0x001A, WM_ENDSESSION = 0x0016;
     public const int VK_ESCAPE = 0x1B;
     public const IntPtr ICON_SMALL = 0, ICON_BIG = 1;
 
