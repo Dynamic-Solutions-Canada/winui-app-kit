@@ -46,6 +46,9 @@ public sealed class FlyoutController
 
         ConfigureWindow();
 
+        // The flyout is created once and mostly never activated; WinUI's shutdown waits for it.
+        Hosting.HostWindow.CloseOnExit(window);
+
         _wndProc = WndProc;
         SetWindowSubclass(_hwnd, _wndProc, SubclassId, 0);
         window.Activated += (_, e) =>
