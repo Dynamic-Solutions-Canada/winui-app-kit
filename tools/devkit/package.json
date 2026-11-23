@@ -7,7 +7,7 @@
     "node": ">=22.12 <25"
   },
   "dependencies": {
-    "@dynamic-solutions-canada/devkit": "git+https://github.com/Dynamic-Solutions-Canada/devkit.git#v0.26.0",
+    "@dynamic-solutions-canada/devkit": "git+https://github.com/Dynamic-Solutions-Canada/devkit.git#v0.27.0",
     "@resvg/resvg-js": "2.6.2"
   }
 }

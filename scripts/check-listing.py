@@ -26,6 +26,9 @@ Listing (LIST-3, LIST-5, LIST-7, LIST-12):
   - Every full record has exactly title, shortDescription, fullDescription, features, keywords and
     screenshotCaptions: no releaseNotes (LIST-10). Every field is within the Microsoft Store's limits,
     including 21 keyword words combined; over-length text fails and nothing is truncated.
+  - A record may also carry heroHeadline and heroSubline, the text devkit-store-hero draws on the
+    first screenshot (D-123). They are never uploaded as listing text. Each is set in every full
+    record or in none, and follows the same text rules; devkit-store-hero decides whether it fits.
   - Every locale has the same number of screenshot captions. No text has an em dash or a retired name.
   - The title is the product name, and the README's header tagline (the first paragraph after its <h1>,
     tags removed) is the first sentence of the en-US shortDescription, word for word.
@@ -52,6 +55,9 @@ FULL_MAX = 4000
 FEATURES_MAX, FEATURE_MAX = 20, 200
 KEYWORDS_MAX, KEYWORD_MAX, KEYWORD_WORDS_MAX = 7, 40, 21
 CAPTIONS_MAX, CAPTION_MAX = 10, 200
+# The hero's text, drawn by devkit-store-hero on the first screenshot (D-123); the store never sees it
+# as text. The limits only catch a pasted paragraph: whether it fits is devkit-store-hero's check.
+HERO_FIELDS = {"heroHeadline": 120, "heroSubline": 200}
 NOTES_MAX = 1500
 
 EM_DASH = "\u2014"
@@ -97,7 +103,7 @@ class Checker:
     def record(self, locale: str, record: dict) -> None:
         """One full locale record: exactly the fields, each within the store's limits."""
         missing = [f for f in FIELDS if f not in record]
-        extra = [f for f in record if f not in FIELDS]
+        extra = [f for f in record if f not in FIELDS and f not in HERO_FIELDS]
         if missing:
             self.problems.append(f"{locale}: missing {', '.join(missing)}")
         if extra:
@@ -110,6 +116,9 @@ class Checker:
         self.items(f"{locale}.features", record.get("features"), FEATURES_MAX, FEATURE_MAX)
         self.items(f"{locale}.keywords", record.get("keywords"), KEYWORDS_MAX, KEYWORD_MAX)
         self.items(f"{locale}.screenshotCaptions", record.get("screenshotCaptions"), CAPTIONS_MAX, CAPTION_MAX)
+        for field, limit in HERO_FIELDS.items():
+            if field in record:
+                self.text(f"{locale}.{field}", record[field], limit)
 
         keywords = record.get("keywords")
         if isinstance(keywords, list):
@@ -158,6 +167,13 @@ def check_listing(checker: Checker, listing_path: Path, wording: list[str] | Non
         checker.record(locale, locales[locale])
     if wording is not None and sorted(full) != sorted(wording):
         checker.problems.append(f"listings.json: full records {sorted(full)} differ from the app's catalogs {sorted(wording)} (LIST-7)")
+
+    # A hero field in some locales but not others would draw a different first screenshot per language.
+    for field in HERO_FIELDS:
+        having = [locale for locale in full if field in locales[locale]]
+        if having and len(having) != len(full):
+            lacking = [locale for locale in full if locale not in having]
+            checker.problems.append(f"{field}: set in {having} but not in {lacking}; set it in every full record or none")
 
     counts = {locale: len(locales[locale].get("screenshotCaptions") or []) for locale in full}
     if len(set(counts.values())) > 1:

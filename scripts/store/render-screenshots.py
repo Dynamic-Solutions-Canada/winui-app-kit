@@ -17,6 +17,13 @@ Reads store-assets/manifest.json:
       ]
     }
 
+The first entry may instead be a generated hero (D-123, LIST-8): an entry with a "hero" block, whose
+"file" contains {locale}. devkit-store-hero draws it, one PNG per listing locale, from its capture
+and the listings' heroHeadline, and its own --check compares the pixels. This script never crops a
+hero and does not apply the capture rules to its source (a hero may use a 200% capture); it checks
+only that the hero is first, that every listing locale with its own record has its PNG at the output
+size in 8-bit RGB, and the caption and alt text, as for any entry.
+
 Capture (on the test VM, with windows-build-tools' app-test helpers, from the app's repo root): the
 whole desktop at 1:1 with the real wallpaper (the Windows 11 dark default, img19.jpg), window effects on
 and the app's window focused and centred on the work area. Beside each <name>.png the helper writes
@@ -65,6 +72,7 @@ DEFAULT_SIZE = "1366x768"
 MARGIN = 24  # desktop kept around the window frame on every side, for its shadow
 WALLPAPER = "img19.jpg"
 MAX_SCREENSHOTS = 10
+LOCALE_TOKEN = "{locale}"
 CROPS = ("window", "tray", "bottom")
 # Mean luma (0-255, Rec. 709) of the window in a screenshot must be below this, so an app set to its own
 # light theme fails even on a dark Windows. Calibrated on little-launcher's real dark captures (windows
@@ -234,13 +242,44 @@ def bottom_crop(screen: dict, window: dict, size: tuple[int, int]) -> tuple[int,
     return left, top
 
 
+def is_hero(entry: dict) -> bool:
+    """True for the generated first screenshot, which devkit-store-hero draws (D-123)."""
+    return "hero" in entry
+
+
+def hero_problems(entries: list[dict]) -> list[str]:
+    """A hero must be the first entry and the only one, with a per-locale file path."""
+    problems = []
+    for index, entry in enumerate(entries):
+        if not is_hero(entry):
+            continue
+        label = entry.get("file", "?")
+        if index != 0:
+            problems.append(f"{label}: a hero must be the first screenshot (LIST-8)")
+        if LOCALE_TOKEN not in str(entry.get("file", "")):
+            problems.append(f"{label}: a hero's file must contain {LOCALE_TOKEN}, one image per listing locale")
+    return problems
+
+
+def hero_locales(assets: Path) -> list[str]:
+    """The listing locales with their own record, which each get a hero; en-US without a listing."""
+    listings = assets / "microsoft" / "listings.json"
+    if not listings.is_file():
+        return ["en-US"]
+    locales = json.loads(listings.read_text(encoding="utf-8-sig")).get("locales", {})
+    return [locale for locale, record in locales.items() if not (isinstance(record, dict) and "copyFrom" in record)]
+
+
 def plan(assets: Path, entries: list[dict], size: tuple[int, int]) -> tuple[list[tuple[dict, int, int]], list[str]]:
-    """Each usable entry with its crop corner, and every problem found with the captures."""
-    jobs, problems = [], []
+    """Each usable captured entry with its crop corner, and every problem found with the captures."""
+    jobs, problems = [], hero_problems(entries)
     for entry in entries:
         label = entry.get("file", "?")
         if entry.get("theme") != "dark":
             problems.append(f"{label}: theme {entry.get('theme')!r}; Store screenshots are dark (LIST-8)")
+        # devkit-store-hero draws the hero and checks its capture.
+        if is_hero(entry):
+            continue
         crop = entry.get("crop", "window")
         if crop not in CROPS:
             problems.append(f"{label}: crop {crop!r} is not window, tray or bottom")
@@ -265,6 +304,10 @@ def render(assets: Path, entries: list[dict], size: tuple[int, int]) -> None:
         for problem in problems:
             print("error: " + problem, file=sys.stderr)
         fail("nothing was rendered")
+
+    if not jobs:
+        print("render-screenshots: no captured screenshots to crop")
+        return
 
     # ImageMagick crops each capture to raw 8-bit RGB (it ignores PNG filter settings); this script then
     # writes the PNG itself with unfiltered rows, which the check decodes without Docker.
@@ -354,6 +397,35 @@ def window_luma(rows: list[bytes], box: tuple[int, int, int, int]) -> float:
     return (0.2126 * red + 0.7152 * green + 0.0722 * blue) / count
 
 
+def png_format_problem(path: Path, label: str, size: tuple[int, int]) -> str | None:
+    """Why a screenshot is not a PNG of the output size in 8-bit RGB without alpha, or None."""
+    width, height = size
+    try:
+        actual_width, actual_height, depth, colour = png_header(path)
+    except ValueError as error:
+        return str(error)
+    if (actual_width, actual_height) != (width, height):
+        return f"{label}: {actual_width} x {actual_height}, not {width} x {height}"
+    if depth != 8 or colour != 2:
+        return f"{label}: not 8-bit RGB without alpha (bit depth {depth}, colour type {colour})"
+    return None
+
+
+def hero_file_problems(assets: Path, entry: dict, size: tuple[int, int]) -> list[str]:
+    """Every listing locale's hero exists in the listing's format; its pixels are devkit's to check."""
+    problems = []
+    for locale in hero_locales(assets):
+        label = entry.get("file", "").replace(LOCALE_TOKEN, locale)
+        path = assets / "microsoft" / label
+        if not path.is_file():
+            problems.append(f"{label}: missing; run devkit-store-hero")
+            continue
+        format_problem = png_format_problem(path, label, size)
+        if format_problem:
+            problems.append(format_problem)
+    return problems
+
+
 def check(assets: Path, entries: list[dict], size: tuple[int, int]) -> int:
     """Every capture and screenshot is as the Store and LIST-8 require, and nothing is extra."""
     width, height = size
@@ -361,27 +433,24 @@ def check(assets: Path, entries: list[dict], size: tuple[int, int]) -> int:
     corners = {id(entry): (left, top) for entry, left, top in jobs}
     rendered = set()
     for entry in entries:
-        path = assets / "microsoft" / entry.get("file", "")
-        rendered.add(path.resolve())
         for field in ("caption", "alt"):
             if not entry.get(field):
                 problems.append(f"{entry.get('file')}: no {field}")
+        if is_hero(entry):
+            problems += hero_file_problems(assets, entry, size)
+            continue
+
+        path = assets / "microsoft" / entry.get("file", "")
+        rendered.add(path.resolve())
         if not path.is_file():
             problems.append(f"{entry.get('file')}: missing; run the renderer")
             continue
-        try:
-            actual_width, actual_height, depth, colour = png_header(path)
-        except ValueError as error:
-            problems.append(str(error))
+        format_problem = png_format_problem(path, entry["file"], size)
+        if format_problem:
+            problems.append(format_problem)
             continue
-        if (actual_width, actual_height) != (width, height):
-            problems.append(f"{entry['file']}: {actual_width} x {actual_height}, not {width} x {height}")
-        if depth != 8 or colour != 2:
-            problems.append(f"{entry['file']}: not 8-bit RGB without alpha (bit depth {depth}, colour type {colour})")
+        if id(entry) not in corners:
             continue
-        if (actual_width, actual_height) != (width, height) or id(entry) not in corners:
-            continue
-
         # The app itself must be dark: its own theme setting can be light while Windows is dark.
         rows = read_unfiltered_rgb(path, width, height)
         if isinstance(rows, str):
@@ -394,7 +463,8 @@ def check(assets: Path, entries: list[dict], size: tuple[int, int]) -> int:
         if luma >= DARK_LUMA_LIMIT:
             problems.append(f"{entry['file']}: the window's mean brightness is {luma:.0f} of 255 (dark is under {DARK_LUMA_LIMIT}); is the app set to its light theme?")
 
-    for folder in {(assets / "microsoft" / entry.get("file", "")).parent for entry in entries}:
+    # A hero's per-locale folders hold only heroes; devkit-store-hero names any left from a dropped locale.
+    for folder in {(assets / "microsoft" / entry.get("file", "")).parent for entry in entries if not is_hero(entry)}:
         for path in folder.glob("*.png"):
             if path.resolve() not in rendered:
                 problems.append(f"{path.relative_to(assets).as_posix()}: not in manifest.json")
