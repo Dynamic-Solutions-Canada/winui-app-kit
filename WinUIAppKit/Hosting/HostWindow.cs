@@ -6,7 +6,8 @@ namespace WinUIAppKit.Hosting;
 
 /// <summary>
 /// Turns a resident app's <c>MainWindow</c> into the hidden host that owns its tray icon (TRAY-7, D-074):
-/// a 1x1 tool window parked off-screen, never in the taskbar or Alt+Tab, that cancels its own close.
+/// a 1x1 tool window parked off-screen, never in the taskbar or Alt+Tab, never activated (so it never
+/// takes the foreground; see <see cref="AppBootstrap.Launch"/>), that cancels its own close.
 /// It also answers a second launch's "show yourself" message, and runs the app's exit steps before
 /// WinUI's orderly shutdown (<see cref="Application.Exit"/>), both when the app exits itself and when
 /// Windows ends the session (shut down, restart, sign out).
