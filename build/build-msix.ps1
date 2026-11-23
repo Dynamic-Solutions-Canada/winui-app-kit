@@ -39,6 +39,11 @@
       companions                 Extra projects, each {"project", "publish_args": [], "files": "*" or
                                  ["a.exe"], "destination": "", "remove": []}, published self-contained
                                  for the same platform and copied into the layout after the app.
+                                 Optional per companion: "builder": "msbuild" builds with Visual
+                                 Studio's MSBuild (for UWP XAML, whose compiler ships only there),
+                                 "requires": [Visual Studio component ids] that installation must have,
+                                 and "xaml": true copies its compiled XAML (.xbf) beside it, keeping
+                                 paths (a companion keeps its XAML in a folder of its own).
       manifest_strings           {"catalog_dir": "..."}: the app's JSON catalogs, from which the
                                  manifest's ms-resource:Resources/<Key> strings are written for every
                                  declared language (regional identities alias by the kit's languages.json).
@@ -137,6 +142,20 @@ function Find-SdkBin([string]$HostArch) {
     }
 
     return $null
+}
+
+# Visual Studio's MSBuild.exe for the host architecture, from an installation that has MSBuild and every
+# component in $Requires (Visual Studio Installer component ids). Throws naming the components to add.
+function Find-VisualStudioMSBuild([string[]]$Requires) {
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+    if (-not (Test-Path $vswhere)) { throw "No Visual Studio installation (vswhere.exe not found); install Visual Studio Build Tools with $($Requires -join ', ')." }
+    $needs = @("Microsoft.Component.MSBuild") + $Requires
+    $installation = & $vswhere -latest -products * -requires $needs -property installationPath
+    if (-not $installation) { throw "No Visual Studio installation has $($needs -join ', '); add them with the Visual Studio Installer." }
+    $binArch = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "arm64" } else { "amd64" }
+    $msbuild = Join-Path $installation "MSBuild\Current\Bin\$binArch\MSBuild.exe"
+    if (-not (Test-Path $msbuild)) { throw "MSBuild.exe not found at $msbuild" }
+    return $msbuild
 }
 
 # Sign one file with the trusted certificate and a timestamp.
@@ -278,12 +297,45 @@ foreach ($companion in @(Get-Setting $config "companions" @())) {
     $companionOut = Join-Path $workDir "companions\$companionName\$Platform"
     Write-Host "`n=== Publishing companion $companionName ===" -ForegroundColor Cyan
     New-CleanDirectory $companionOut
-    $companionArgs = @("publish", $companionProject, "-c", $Configuration, "-r", $rid, "-p:Platform=$Platform",
-        "--self-contained", "-o", $companionOut) + @(Get-Setting $companion "publish_args" @())
-    Invoke-Tool "dotnet publish $companionName" "dotnet" $companionArgs
+    $builder = Get-Setting $companion "builder" "dotnet"
+    if ($builder -eq "msbuild") {
+        # Visual Studio's MSBuild, for projects whose build steps ship only with Visual Studio (the UWP
+        # XAML compiler). publish_args are passed through as MSBuild arguments.
+        $msbuild = Find-VisualStudioMSBuild @(Get-Setting $companion "requires" @())
+        $companionArgs = @($companionProject, "-restore", "-t:Publish", "-p:Configuration=$Configuration", "-p:Platform=$Platform",
+            "-p:RuntimeIdentifier=$rid", "-p:SelfContained=true", "-p:PublishDir=$companionOut\", "-v:minimal", "-nologo",
+            "-nodeReuse:false") + @(Get-Setting $companion "publish_args" @())
+        Invoke-Tool "MSBuild publish $companionName" $msbuild $companionArgs
+    } elseif ($builder -eq "dotnet") {
+        $companionArgs = @("publish", $companionProject, "-c", $Configuration, "-r", $rid, "-p:Platform=$Platform",
+            "--self-contained", "-o", $companionOut) + @(Get-Setting $companion "publish_args" @())
+        Invoke-Tool "dotnet publish $companionName" "dotnet" $companionArgs
+    } else {
+        throw "Companion $companionName has an unknown builder '$builder' (dotnet or msbuild)."
+    }
 
     $destination = Join-Path $layoutDir (Get-Setting $companion "destination" "")
     New-Item $destination -ItemType Directory -Force | Out-Null
+
+    # A XAML companion's compiled XAML (.xbf) is left out of its publish, like the app's: copy it from
+    # the RID build folder, keeping paths, so it resolves at ms-appx:///<path> through resources.pri.
+    # Two apps in one package share that one namespace, so the companion keeps its XAML in a folder of
+    # its own; a file that would replace one already in the layout is refused.
+    if (Get-Setting $companion "xaml" $false) {
+        $companionBin = Join-Path (Split-Path $companionProject -Parent) "bin\$Platform\$Configuration"
+        $companionRidDirs = @(Get-ChildItem $companionBin -Directory -ErrorAction SilentlyContinue |
+            ForEach-Object { Join-Path $_.FullName $rid } | Where-Object { Test-Path $_ })
+        if ($companionRidDirs.Count -ne 1) { throw "Expected one build folder for $rid under $companionBin, found $($companionRidDirs.Count)." }
+        $companionXbf = @(Get-ChildItem $companionRidDirs[0] -Filter "*.xbf" -Recurse | Where-Object { $_.FullName -notlike "*\publish\*" })
+        if ($companionXbf.Count -eq 0) { throw "Companion $companionName is marked xaml but built no .xbf files." }
+        foreach ($xbf in $companionXbf) {
+            $target = Join-Path $destination $xbf.FullName.Substring($companionRidDirs[0].Length + 1)
+            if (Test-Path $target) { throw "Companion $companionName's $($xbf.Name) would replace a file already in the layout; keep its XAML in its own folder." }
+            New-Item (Split-Path $target -Parent) -ItemType Directory -Force | Out-Null
+            Copy-Item $xbf.FullName $target
+        }
+        Write-Host "  Compiled XAML: $($companionXbf.Count) file(s)"
+    }
     $files = Get-Setting $companion "files" "*"
     if ($files -is [string] -and $files -eq "*") {
         Copy-Tree $companionOut $destination
