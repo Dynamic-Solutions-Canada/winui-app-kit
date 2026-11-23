@@ -4,6 +4,8 @@
 #   external/winui-app-kit/scripts/devkit icons            write every icon size from assets/brand/
 #   external/winui-app-kit/scripts/devkit icons --check    fail when a committed icon is stale (validate)
 #   external/winui-app-kit/scripts/devkit precommit [...]  refuse secrets and oversized staged files
+#   external/winui-app-kit/scripts/devkit hero             draw the first Store screenshot per locale (D-123)
+#   external/winui-app-kit/scripts/devkit hero --check     fail when a committed hero is stale (validate)
 # Every argument after the command passes through unchanged, so each app keeps its own policy (for
 # example --allow and --max-size for precommit) in its package.json or lefthook.yml.
 #
@@ -23,7 +25,7 @@ modules="$tools/node_modules"
 stamp="$modules/.kit-lockfile.sha256"
 
 usage() {
-    printf 'usage: scripts/devkit icons [--check] | precommit [devkit-precommit options]\n' >&2
+    printf 'usage: scripts/devkit icons [--check] | hero [--check] | precommit [devkit-precommit options]\n' >&2
     exit 2
 }
 
@@ -71,6 +73,7 @@ command="$1"
 shift
 case "$command" in
     icons) bin="devkit-icons.mjs" ;;
+    hero) bin="devkit-store-hero.mjs" ;;
     precommit) bin="devkit-precommit.mjs" ;;
     *) usage ;;
 esac
@@ -79,6 +82,8 @@ require_node
 ensure_installed
 
 # The command runs in the app's repo root, which is where devkit looks for assets/brand/ and git.
-# DEVKIT_ICONS_RENDERER_DIR points devkit at the kit's renderer, since the app has no node_modules.
+# DEVKIT_ICONS_RENDERER_DIR points devkit at the kit's renderer, since the app has no node_modules;
+# hero draws with the same renderer. Its pinned fonts download once into the user's cache (see
+# "Store heroes" in devkit's README).
 export DEVKIT_ICONS_RENDERER_DIR="$tools"
 exec node "$modules/@dynamic-solutions-canada/devkit/bin/$bin" "$@"

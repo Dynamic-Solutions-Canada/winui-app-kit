@@ -53,6 +53,12 @@ expect fail "precommit: staged signing material is refused" "$devkit" precommit
 expect pass "precommit: --allow passes through to devkit" "$devkit" precommit --allow signing.pfx
 git rm -q --cached signing.pfx
 
+# --- Store hero ---
+# Dispatch only, offline: with no store-assets/manifest.json, devkit-store-hero stops before it would
+# download its fonts, and its message proves the wrapper reached it. devkit's own tests cover drawing.
+expect fail "hero: --check runs devkit-store-hero and fails without a manifest" "$devkit" hero --check
+grep -q 'store-assets/manifest.json is missing' "$work/out.txt" && passed=$((passed + 1)) || { failed=$((failed + 1)); echo "FAIL: hero: the failure is devkit-store-hero's missing-manifest message"; sed 's/^/    /' "$work/out.txt"; }
+
 # --- Usage ---
 expect fail "usage: an unknown command is refused" "$devkit" lint
 
