@@ -13,6 +13,10 @@ It reads the optional `notices` block of the app's windows-build.json:
       "about_source": "MyApp/Classes/AboutContent.cs"  optional: the file defining NoticesPath
     }
 
+Also reads every companion's (windows-build.json "companions"), since companions ship in the same
+package. The .NET runtime's own toolchain packages (ILCompiler for Native AOT, ILLink) are left out,
+like the runtime a self-contained app carries, which is not listed either.
+
 Reads the project's obj/project.assets.json, which any restore writes (`npm run format:check` restores
 the project first in `validate`), and stops if that restore predates the package versions declared now
 (after a kit pin bump, say), so it never writes or passes the old list. It also reads each package's
@@ -120,7 +124,8 @@ def fail(message):
 def load_settings(root):
     """
     The project, output path and product name for the app at `root`, from its windows-build.json.
-    Returns (assets_path, output_path, project_dir, product_name, about_source), where about_source is
+    Returns (assets_paths, output_path, project_dir, product_name, about_source): the app's and each
+    companion's restore output, and so on, where about_source is
     None when not configured; stops the run when a required value can't be found.
     """
     config_path = root / "windows-build.json"
@@ -140,24 +145,43 @@ def load_settings(root):
     project_dir = (root / project).parent
     output = root / settings["output"] if settings.get("output") else project_dir / "THIRD-PARTY-NOTICES.txt"
     about_source = root / settings["about_source"] if settings.get("about_source") else None
-    return project_dir / "obj" / "project.assets.json", output, project_dir, product, about_source
+    assets_paths = [project_dir / "obj" / "project.assets.json"]
+    for companion in config.get("companions") or []:
+        assets_paths.append((root / companion["project"]).parent / "obj" / "project.assets.json")
+    return assets_paths, output, project_dir, product, about_source
 
 
-def shipped_packages(root, assets_path):
-    """The (name, version) of every package in the restore graph, without build-time tooling."""
-    if not assets_path.is_file():
-        fail(f"{assets_path.relative_to(root).as_posix()} is missing; restore the project first (npm run format:check does)")
+def is_toolchain(name):
+    """
+    Build-time tooling that never ships: the Windows SDK build tools, and the .NET runtime's own
+    compilers (Native AOT's ILCompiler, in a package per host, and ILLink), whose output is the .NET
+    runtime, which is not listed for self-contained apps either.
+    """
+    lowered = name.lower()
+    return (
+        "buildtools" in lowered
+        or lowered == "microsoft.net.illink.tasks"
+        or lowered == "microsoft.dotnet.ilcompiler"
+        or (lowered.startswith("runtime.") and lowered.endswith(".microsoft.dotnet.ilcompiler"))
+    )
 
-    assets = json.loads(assets_path.read_text(encoding="utf-8"))
-    stale_restore(root, assets_path, assets)
+
+def shipped_packages(root, assets_paths):
+    """The (name, version) of every package in the restore graphs, without build-time tooling."""
     found = set()
-    for key, library in assets.get("libraries", {}).items():
-        if library.get("type") != "package":
-            continue
-        name, version = key.split("/", 1)
-        if "BuildTools" in name:
-            continue
-        found.add((name, version))
+    for assets_path in assets_paths:
+        if not assets_path.is_file():
+            fail(f"{assets_path.relative_to(root).as_posix()} is missing; restore the project first (npm run format:check does)")
+
+        assets = json.loads(assets_path.read_text(encoding="utf-8"))
+        stale_restore(root, assets_path, assets)
+        for key, library in assets.get("libraries", {}).items():
+            if library.get("type") != "package":
+                continue
+            name, version = key.split("/", 1)
+            if is_toolchain(name):
+                continue
+            found.add((name, version))
     return sorted(found, key=lambda p: p[0].lower())
 
 
@@ -365,8 +389,8 @@ def wrong_notices_path(root, about_source, output):
 def main():
     """Write the notices, or with --check compare them with the committed file and check links to it."""
     root = Path.cwd()
-    assets_path, output, project_dir, product, about_source = load_settings(root)
-    content = render(shipped_packages(root, assets_path), product)
+    assets_paths, output, project_dir, product, about_source = load_settings(root)
+    content = render(shipped_packages(root, assets_paths), product)
     relative = output.relative_to(root).as_posix()
 
     if "--check" in sys.argv[1:]:
