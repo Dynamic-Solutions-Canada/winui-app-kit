@@ -5,8 +5,8 @@ them in one archive with the package.
 .DESCRIPTION
 Run by store-publish when its screenshots input is on, after the Store CLI has staged the package and
 before the release notes are set. Each listing locale gets the screenshots resolve-store-screenshots.ps1
-plans: the locale's generated hero first when the manifest has one, then the shared screenshots, each
-captioned in that locale. Logos and all other listing content are kept (merge-store-screenshots.ps1).
+plans: the locale's generated hero first when the manifest has one, then the other screenshots in
+manifest order (the locale's own copy of each localized one), each captioned in that locale. Logos and all other listing content are kept (merge-store-screenshots.ps1).
 
 The draft has one upload location, which already holds the CLI's package, so this uploads one archive
 holding the package again plus every image (new-store-upload-archive.ps1). The draft must still expect

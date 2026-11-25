@@ -1,0 +1,22 @@
+{
+  "size": "1920x1080",
+  "microsoft": [
+    {
+      "file": "screenshots/{locale}/00-hero-dark.png",
+      "source": "raw/microsoft/{locale}/00-flyout-dark.png",
+      "theme": "dark",
+      "hero": {
+        "layout": "split"
+      },
+      "caption": "Everything from the tray.",
+      "alt": "The flyout beside a headline."
+    },
+    {
+      "file": "screenshots/{locale}/01-settings-dark.png",
+      "source": "raw/microsoft/{locale}/01-settings-dark.png",
+      "theme": "dark",
+      "caption": "Settings.",
+      "alt": "The Settings page."
+    }
+  ]
+}

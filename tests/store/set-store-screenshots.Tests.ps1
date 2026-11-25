@@ -103,6 +103,19 @@ try {
     $images = (& (Join-Path $PSScriptRoot '../../scripts/store/resolve-store-screenshots.ps1') -AssetsPath $assets -ListingLocales @('en-CA', 'fr-FR')).Locales
     Check ($images['en-ca'][0].Source -like '*en-US*00-hero-dark.png' -and $images['fr-fr'][0].Source -like '*fr-FR*00-hero-dark.png') 'a copyFrom locale uses its target hero'
 
+    # A localized manifest: every locale uploads its own hero and its own copy of each localized
+    # screenshot, in manifest order; en-CA copies en-US's images.
+    $localized = Join-Path $PSScriptRoot 'fixtures/store-assets-localized'
+    $resolve = Join-Path $PSScriptRoot '../../scripts/store/resolve-store-screenshots.ps1'
+    $images = (& $resolve -AssetsPath $localized -ListingLocales @('en-US', 'en-CA', 'fr-FR')).Locales
+    $sources = @($images['fr-fr'] | ForEach-Object { $_.Source.Replace('\', '/') })
+    Check ($sources[0] -like '*/screenshots/fr-FR/00-hero-dark.png' -and $sources[1] -like '*/screenshots/fr-FR/01-settings-dark.png') 'localized: fr-fr uploads its own hero, then its own screenshot'
+    Check (($images['fr-fr'].Description -join '|') -eq 'Tout depuis la zone de notification.|Param' + [char]0xE8 + 'tres.') 'localized: fr-fr captions in order'
+    Check ($images['en-ca'][1].Source.Replace('\', '/') -like '*/screenshots/en-US/01-settings-dark.png') 'localized: a copyFrom locale uploads its target images'
+    Check (($images['en-ca'].FileName -join ',') -eq 'en-ca/00-hero-dark.png,en-ca/01-settings-dark.png') 'localized: each listing gets its own archive names'
+    $localizedPlan = & $scriptPath -PlanOnly -UploadPath $upload -AssetsPath $localized
+    Check ("$localizedPlan" -match '3 locales, 2 screenshots each') 'localized: plan only covers every listing locale'
+
     # Anything the Store drops fails the run.
     Reset-Fixture
     $global:dropImages = $true
