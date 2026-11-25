@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# Check that every workflow in a repo that calls one of the kit's reusable workflows names the same tag
+# as the kit submodule it builds with (KIT-6).
+#
+# Usage: scripts/check-kit-ref [repo-root]
+#   With no argument it checks the kit itself, which calls none of its own workflows by tag and passes.
+#   An app calls the kit's copy with its own root, for example:
+#   external/winui-app-kit/scripts/check-kit-ref .
+#
+# Why: the Store workflow refuses to run when its `uses:` tag differs from the caller's submodule
+# <Version>, but only once a release is already publishing. This finds the same drift in `validate`,
+# before a tag is pushed. The version compared is <Version> in the kit's Directory.Build.props, the
+# value the Store workflow itself compares against.
+#
+# A reference must be the tag `v<Version>`. A branch or commit reference fails too, because the
+# workflow and the submodule could then disagree without anyone seeing it. A repo with no kit workflow
+# reference passes: it has nothing that can drift.
+set -euo pipefail
+
+kit_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+repo_root="$(cd -- "${1:-$kit_root}" && pwd)"
+props="$kit_root/Directory.Build.props"
+workflows="$repo_root/.github/workflows"
+
+# The kit's version, from the props file its own release bump updates.
+version="$(sed -n 's:.*<Version>\([^<]*\)</Version>.*:\1:p' "$props" | head -n 1)"
+if [[ -z "$version" ]]; then
+    printf 'check-kit-ref: no <Version> in %s.\n' "$props" >&2
+    exit 1
+fi
+expected="v$version"
+
+if [[ ! -d "$workflows" ]]; then
+    printf 'check-kit-ref: %s has no .github/workflows; nothing to check.\n' "$repo_root"
+    exit 0
+fi
+
+# Each `uses:` line that names one of the kit's workflows, as file:line:text. Commented-out lines never
+# match, because the pattern allows only whitespace (and a list dash) before `uses:`. GitHub treats the
+# owner and repo case-insensitively, so the match does too.
+pattern='^[[:space:]]*(-[[:space:]]+)?uses:[[:space:]]*["'"'"']?dynamic-solutions-canada/winui-app-kit/\.github/workflows/[^@[:space:]]+@'
+mapfile -t references < <(
+    find "$workflows" -maxdepth 1 -type f \( -name '*.yml' -o -name '*.yaml' \) -print0 \
+        | sort -z \
+        | xargs -0 -r grep -n -i -E -H "$pattern" || true
+)
+
+if [[ ${#references[@]} -eq 0 ]]; then
+    printf 'check-kit-ref: no workflow in %s calls the kit; nothing to check.\n' "$workflows"
+    exit 0
+fi
+
+# Compare the reference after the @ (up to a quote, space or comment) with the expected tag.
+failures=0
+for reference in "${references[@]}"; do
+    location="${reference%%:*}:$(printf '%s' "${reference#*:}" | cut -d: -f1)"
+    ref="$(printf '%s' "$reference" | sed -E 's/^[^@]*@([^"'"'"'[:space:]#]+).*$/\1/')"
+    if [[ "$ref" != "$expected" ]]; then
+        printf 'check-kit-ref: %s calls the kit at %s, but the kit submodule is %s. Use %s in uses:, or move the submodule to the same tag.\n' \
+            "${location#"$repo_root"/}" "$ref" "$expected" "$expected" >&2
+        failures=$((failures + 1))
+    fi
+done
+
+if (( failures > 0 )); then
+    exit 1
+fi
+
+printf 'check-kit-ref: %d kit workflow reference(s) in %s match %s.\n' "${#references[@]}" "$workflows" "$expected"
