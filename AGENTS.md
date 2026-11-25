@@ -25,7 +25,7 @@ The kit owns the plumbing below and nothing else: no app's pages, settings field
 | App environment, single instance, Win32 declarations | `WinUIAppKit/AppEnvironment.cs`, `WinUIAppKit/SingleInstance.cs`, `WinUIAppKit/Interop/` |
 | Shared XAML (styles, settings shell, About page, Settings page rows), compiled by each app | `Xaml/`, with `Xaml/CompileCheck/` building it for the kit |
 | Shared build configuration for apps and the kit | `build/`, imported by the root `Directory.Build.props`, `Directory.Build.targets` and `Directory.Packages.props` |
-| Checks, generators and the formatter apps run in `validate` | `scripts/format`, `scripts/check-localization.py`, `scripts/check-listing.py`, `scripts/check-gitignore`, `scripts/generate-notices.py` |
+| Checks, generators and the formatter apps run in `validate` | `scripts/format`, `scripts/check-localization.py`, `scripts/check-listing.py`, `scripts/check-gitignore`, `scripts/check-kit-ref`, `scripts/generate-notices.py` |
 | devkit's icon, Store hero and pre-commit commands for apps, installed inside the kit | `scripts/devkit`, pinned in `tools/devkit/package-lock.json`, tested by `tests/devkit-tools/` |
 | Packaging and Windows build entry point for apps | `build/build-msix.ps1` (driven by each app's `windows-build.json`) with `build/package-output.ps1` (deliverable names, pruning) and `build/runtime-dependency.ps1` (the manifest's Windows App Runtime MinVersion gate), both tested by `tests/build/`, `build/languages.json`, `scripts/windows-build` |
 | Microsoft Store screenshot crops and checks for apps | `scripts/store/render-screenshots.py`, crop geometry and hero entries tested by `tests/store-screenshots/`; the listing check's hero fields by `tests/listing/` |

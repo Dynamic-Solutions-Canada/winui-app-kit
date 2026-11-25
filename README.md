@@ -98,6 +98,7 @@ Then, in the app:
 - **Logging:** delete the app's own `NLog.config` and its `Content` item; the shared config is linked into every `WinExe` project. Call `AppLogging.UseDataFolder("<data folder>")` first thing in the `App` constructor, with the folder `AppEnvironment.DataDirectory` uses.
 - **`.editorconfig`:** copy the kit's root `.editorconfig` unchanged.
 - **`.gitignore`:** end it with `build/shared.gitignore`, unchanged, and paste it again when a kit release changes it. Add `external/winui-app-kit/scripts/check-gitignore .` to the app's `validate` to keep it that way.
+- **Kit workflow tag:** add `external/winui-app-kit/scripts/check-kit-ref .` to the app's `validate`. It fails when a workflow's `uses:` line for one of the kit's reusable workflows names any ref other than `v` plus the kit submodule's `<Version>`, the same comparison the Store workflow makes at publish time, so a pin bump that misses the workflow is caught before a release tag is pushed.
 
 What each file sets:
 
