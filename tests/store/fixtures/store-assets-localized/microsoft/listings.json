@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "locales": {
+    "en-US": {
+      "title": "Fixture",
+      "screenshotCaptions": [
+        "Everything from the tray.",
+        "Settings."
+      ]
+    },
+    "en-CA": {
+      "copyFrom": "en-US"
+    },
+    "fr-FR": {
+      "title": "Fixture",
+      "screenshotCaptions": [
+        "Tout depuis la zone de notification.",
+        "Paramètres."
+      ]
+    }
+  }
+}

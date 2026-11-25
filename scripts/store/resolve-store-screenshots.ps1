@@ -5,11 +5,12 @@ Store call.
 .DESCRIPTION
 Used when a Store run owns the listing screenshots (store-publish's screenshots input). Every Store
 screenshot in store-assets/manifest.json goes to every listing, in manifest order, captioned with that
-locale's screenshotCaptions from store-assets/microsoft/listings.json. A generated hero (an entry with a
-"hero" block, D-123) has one image per listing locale: its {locale} is the locale's own record, or the
-target of a copyFrom locale, so en-CA shows the en-US hero. A listing locale with no record in
-listings.json (one outside the family) takes the en-US screenshots and captions, as it takes the English
-release notes, and is reported in Fallback.
+locale's screenshotCaptions from store-assets/microsoft/listings.json. An entry whose file contains
+{locale} has one image per listing locale: a generated hero (an entry with a "hero" block, D-123), or a
+localized screenshot cropped from that locale's own capture. Its {locale} is the locale's own record, or
+the target of a copyFrom locale, so en-CA shows the en-US images. An entry without {locale} is one image
+shared by every listing. A listing locale with no record in listings.json (one outside the family) takes
+the en-US screenshots and captions, as it takes the English release notes, and is reported in Fallback.
 
 Each image gets an archive name of "<listing locale>/<file name>", so every listing has its own copy in
 the upload archive and no two listings share a file.
@@ -78,8 +79,8 @@ foreach ($locale in $ListingLocales) {
     $images = for ($index = 0; $index -lt $entries.Count; $index++) {
         $entry = $entries[$index]
         $file = [string]$entry.file
-        # A hero is drawn per listing locale; every other screenshot is shared.
-        if ($entry.PSObject.Properties['hero']) { $file = $file.Replace($localeToken, $found.Name) }
+        # A hero or localized screenshot has one image per listing locale; any other is shared.
+        $file = $file.Replace($localeToken, $found.Name)
         $source = Join-Path (Join-Path $AssetsPath 'microsoft') $file
         if (-not (Test-Path -LiteralPath $source)) { throw "Missing Store screenshot for ${key}: $source" }
         @{

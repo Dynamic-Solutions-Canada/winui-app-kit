@@ -17,24 +17,35 @@ Reads store-assets/manifest.json:
       ]
     }
 
+Localized screenshots: "file" and "source" may both contain {locale} (never one without the other), as
+    { "file": "screenshots/{locale}/01-home-dark.png", "source": "raw/microsoft/{locale}/01-home-dark.png", ... }
+and the entry is then cropped once per listing locale with its own record in microsoft/listings.json
+(a copyFrom locale uses its target's images), from that locale's capture: Windows, the app and its
+sample data in that language. Every such locale needs its capture; there is no fallback to en-US here,
+since a missing one would ship English UI in a translated listing. Entries without {locale} are one
+image for every locale, as before, and the two kinds can be mixed while an app moves over.
+
 The first entry may instead be a generated hero (D-123, LIST-8): an entry with a "hero" block, whose
 "file" contains {locale}. devkit-store-hero draws it, one PNG per listing locale, from its capture
 and the listings' heroHeadline, and its own --check compares the pixels. This script never crops a
-hero and does not apply the capture rules to its source (a hero may use a 200% capture); it checks
+hero and does not apply the capture rules to its source (devkit checks it; its source may contain {locale}); it checks
 only that the hero is first, that every listing locale with its own record has its PNG at the output
 size in 8-bit RGB, and the caption and alt text, as for any entry.
 
 Capture (on the test VM, with windows-build-tools' app-test helpers, from the app's repo root): the
-whole desktop at 1:1 with the real wallpaper (the Windows 11 dark default, img19.jpg), window effects on
+whole desktop, at 100% or 200% display scale, with the real wallpaper (the Windows 11 dark default, img19.jpg), window effects on
 and the app's window focused and centred on the work area. Beside each <name>.png the helper writes
-<name>.json, describing the capture:
+<name>.json, describing the capture in its own (physical) pixels:
     {"screen": {"width": 1920, "height": 1080}, "scale": 100,
      "window": {"x": .., "y": .., "width": .., "height": ..},     DWM extended frame bounds, no shadow
      "workArea": {"x": 0, "y": 0, "width": 1920, "height": 1032},  the screen without the taskbar
      "theme": {"apps": "dark", "system": "dark"}, "wallpaper": "img19.jpg", "effects": true,
      "os": "10.0.26200", "capturedUtc": "2026-11-17T23:10:00Z"}
 
-Crop: nothing is composited, shaved or scaled. "window" takes an output-size rectangle centred on the
+Crop: every rule below is in logical pixels (the sidecar's pixels divided by scale / 100), so a 200%
+capture of a 1920 x 1080 screen crops exactly like a 100% one. Nothing is composited or shaved; a 200%
+capture's crop, twice the output size, is reduced to the output size by averaging each 2 x 2 block, so
+the screenshot keeps its layout and gains sharper text. "window" takes an output-size rectangle centred on the
 window, moved only as far as needed to stay inside the work area (so the taskbar stays out); the window
 and a margin for its shadow must fit, or the crop fails. "tray" takes the bottom-right output-size
 rectangle of the screen, taskbar included, for a tray flyout; the window must be on screen, with its
@@ -45,12 +56,14 @@ result is written as 8-bit RGB without alpha and with unfiltered rows. ImageMagi
 files stay owned by the caller.
 
 Check (no Docker) fails when:
-  - an entry isn't dark, its capture has no sidecar, or the sidecar says the capture was scaled (scale
-    other than 100), taken with apps or the system in light mode, without window effects, on another wallpaper, or at
+  - an entry isn't dark, its capture has no sidecar, or the sidecar says the capture was taken at a
+    display scale other than 100% or 200%, with apps or the system in light mode, without window effects, on another wallpaper, or at
     a size other than the PNG's own;
   - the window doesn't fit the crop with its margin (for "tray", on its left and top, and on screen);
   - a screenshot is missing, isn't exactly the output size, or isn't 8-bit RGB without alpha;
-  - a caption or alt text is empty, a PNG in the screenshots folder isn't in the manifest, there are
+  - a localized entry has {locale} in only one of "file" and "source", or a listing locale has no capture;
+  - a caption or alt text is empty, a PNG in the screenshots folder (or in a localized entry's locale
+    folders, including one for a locale the listing no longer has) isn't in the manifest, there are
     fewer than 1 or more than 10, or the captions differ from the en-US screenshotCaptions in
     store-assets/microsoft/listings.json (same text, same order).
 The sidecar is evidence of how a capture was made, not proof that its pixels weren't edited; the raw
@@ -60,11 +73,13 @@ Standard library only.
 """
 import argparse
 import json
+import math
 import os
 import struct
 import subprocess
 import sys
 import zlib
+from dataclasses import dataclass
 from pathlib import Path
 
 IMAGE = "alpine:3.24.4"
@@ -74,6 +89,8 @@ WALLPAPER = "img19.jpg"
 MAX_SCREENSHOTS = 10
 LOCALE_TOKEN = "{locale}"
 CROPS = ("window", "tray", "bottom")
+# Display scales a capture may be taken at: 1:1, or 2:1 reduced to the output size by 2 x 2 averaging.
+SCALES = (100, 200)
 # Mean luma (0-255, Rec. 709) of the window in a screenshot must be below this, so an app set to its own
 # light theme fails even on a dark Windows. Calibrated on little-launcher's real dark captures (windows
 # and tray flyouts measured 40-58) and the same windows inverted to light (197-215).
@@ -109,9 +126,8 @@ def load_manifest(assets: Path) -> tuple[list[dict], tuple[int, int]]:
     return manifest.get("microsoft", []), (width, height)
 
 
-def capture_problems(assets: Path, entry: dict) -> list[str]:
-    """What is wrong with an entry's capture and its sidecar, as messages; empty when it is usable."""
-    name = entry.get("source", "?")
+def capture_problems(assets: Path, name: str) -> list[str]:
+    """What is wrong with a capture (`name`, under store-assets/) and its sidecar, as messages; empty when usable."""
     source = assets / name
     if not source.is_file():
         return [f"{name}: missing capture"]
@@ -129,8 +145,8 @@ def capture_problems(assets: Path, entry: dict) -> list[str]:
     width, height, _, _ = png_header(source)
     if (width, height) != (screen.get("width"), screen.get("height")):
         problems.append(f"{name}: {width} x {height}, but its sidecar says the screen was {screen.get('width')} x {screen.get('height')}")
-    if sidecar.get("scale") != 100:
-        problems.append(f"{name}: captured at {sidecar.get('scale')}% display scale; captures must be 1:1 (100%)")
+    if sidecar.get("scale") not in SCALES:
+        problems.append(f"{name}: captured at {sidecar.get('scale')}% display scale; captures must be at 100% or 200%")
     theme = sidecar.get("theme") or {}
     for part in ("apps", "system"):
         if theme.get(part) != "dark":
@@ -147,15 +163,42 @@ def capture_problems(assets: Path, entry: dict) -> list[str]:
     return problems
 
 
+def logical(sidecar: dict) -> tuple[dict, dict, dict]:
+    """
+    The sidecar's screen, window and work area in logical pixels: its physical pixels divided by
+    scale / 100 (a sidecar without a scale is 100%). At 200% a rectangle can start or end on an odd
+    physical pixel, so the window is rounded outward (the crop must still hold all of it) and the screen
+    and work area inward (the crop must stay inside them).
+    """
+    factor = sidecar.get("scale", 100) / 100
+    screen, window, work = sidecar["screen"], sidecar["window"], sidecar["workArea"]
+
+    def outward(rect: dict) -> dict:
+        left, top = math.floor(rect["x"] / factor), math.floor(rect["y"] / factor)
+        right = math.ceil((rect["x"] + rect["width"]) / factor)
+        bottom = math.ceil((rect["y"] + rect["height"]) / factor)
+        return {"x": left, "y": top, "width": right - left, "height": bottom - top}
+
+    def inward(rect: dict) -> dict:
+        left, top = math.ceil(rect.get("x", 0) / factor), math.ceil(rect.get("y", 0) / factor)
+        right = math.floor((rect.get("x", 0) + rect["width"]) / factor)
+        bottom = math.floor((rect.get("y", 0) + rect["height"]) / factor)
+        return {"x": left, "y": top, "width": right - left, "height": bottom - top}
+
+    logical_screen = inward(screen)
+    return {"width": logical_screen["width"], "height": logical_screen["height"]}, outward(window), inward(work)
+
+
 def crop_box(sidecar: dict, crop: str, size: tuple[int, int]) -> tuple[int, int] | str:
     """
-    The crop's top-left corner for an output of `size`, or a message saying why it can't be taken.
-    "window" centres on the window and moves only as far as needed to stay inside the work area;
-    "tray" is the bottom-right corner of the screen; "bottom" is the bottom strip of the screen, taskbar
-    included, centred on the window and moved only as far as needed to stay on the screen.
+    The crop's top-left corner, in logical pixels, for an output of `size`, or a message saying why it
+    can't be taken. "window" centres on the window and moves only as far as needed to stay inside the work
+    area; "tray" is the bottom-right corner of the screen; "bottom" is the bottom strip of the screen,
+    taskbar included, centred on the window and moved only as far as needed to stay on the screen. Every
+    rule is in logical pixels (see `logical`), so a 200% capture crops like a 100% one.
     """
     out_width, out_height = size
-    screen, window, work = sidecar["screen"], sidecar["window"], sidecar["workArea"]
+    screen, window, work = logical(sidecar)
 
     if crop == "tray":
         return tray_crop(screen, window, size)
@@ -261,8 +304,11 @@ def hero_problems(entries: list[dict]) -> list[str]:
     return problems
 
 
-def hero_locales(assets: Path) -> list[str]:
-    """The listing locales with their own record, which each get a hero; en-US without a listing."""
+def listing_locales(assets: Path) -> list[str]:
+    """
+    The listing locales with their own record, which each get a hero and their own copy of every
+    localized screenshot; en-US without a listing. A copyFrom locale uses its target's images.
+    """
     listings = assets / "microsoft" / "listings.json"
     if not listings.is_file():
         return ["en-US"]
@@ -270,9 +316,49 @@ def hero_locales(assets: Path) -> list[str]:
     return [locale for locale, record in locales.items() if not (isinstance(record, dict) and "copyFrom" in record)]
 
 
-def plan(assets: Path, entries: list[dict], size: tuple[int, int]) -> tuple[list[tuple[dict, int, int]], list[str]]:
-    """Each usable captured entry with its crop corner, and every problem found with the captures."""
-    jobs, problems = [], hero_problems(entries)
+def is_localized(entry: dict) -> bool:
+    """True for a captured entry with one image per listing locale ({locale} in its file and source)."""
+    return not is_hero(entry) and LOCALE_TOKEN in str(entry.get("file", ""))
+
+
+def localized_problems(entries: list[dict]) -> list[str]:
+    """A captured entry localizes both its file and its source, or neither."""
+    problems = []
+    for entry in entries:
+        if is_hero(entry):
+            continue
+        in_file = LOCALE_TOKEN in str(entry.get("file", ""))
+        in_source = LOCALE_TOKEN in str(entry.get("source", ""))
+        if in_file != in_source:
+            problems.append(f"{entry.get('file', '?')}: {LOCALE_TOKEN} must be in both file and source, or in neither")
+    return problems
+
+
+@dataclass
+class Shot:
+    """One screenshot to crop: a captured entry, for one locale when it is localized."""
+    entry: dict
+    locale: str | None  # None for an entry shared by every locale
+    source: str  # the capture, under store-assets/
+    file: str  # the screenshot, under store-assets/microsoft/
+    left: int = 0  # the crop's corner, in logical pixels, once planned
+    top: int = 0
+    scale: int = 100  # the capture's display scale
+
+
+def shots(entry: dict, locales: list[str]) -> list[Shot]:
+    """The screenshots a captured entry gives: one, or one per listing locale when it is localized."""
+    source, file = str(entry.get("source", "?")), str(entry.get("file", ""))
+    if not is_localized(entry):
+        return [Shot(entry, None, source, file)]
+    return [Shot(entry, locale, source.replace(LOCALE_TOKEN, locale), file.replace(LOCALE_TOKEN, locale))
+            for locale in locales]
+
+
+def plan(assets: Path, entries: list[dict], size: tuple[int, int]) -> tuple[list[Shot], list[str]]:
+    """Each usable screenshot with its crop corner, and every problem found with the captures."""
+    jobs, problems = [], hero_problems(entries) + localized_problems(entries)
+    locales = listing_locales(assets)
     for entry in entries:
         label = entry.get("file", "?")
         if entry.get("theme") != "dark":
@@ -284,16 +370,19 @@ def plan(assets: Path, entries: list[dict], size: tuple[int, int]) -> tuple[list
         if crop not in CROPS:
             problems.append(f"{label}: crop {crop!r} is not window, tray or bottom")
             continue
-        found = capture_problems(assets, entry)
-        if found:
-            problems += found
-            continue
-        sidecar = json.loads((assets / entry["source"]).with_suffix(".json").read_text(encoding="utf-8-sig"))
-        corner = crop_box(sidecar, crop, size)
-        if isinstance(corner, str):
-            problems.append(f"{entry['source']}: {corner}")
-            continue
-        jobs.append((entry, corner[0], corner[1]))
+        for shot in shots(entry, locales):
+            found = capture_problems(assets, shot.source)
+            if found:
+                problems += found
+                continue
+            sidecar = json.loads((assets / shot.source).with_suffix(".json").read_text(encoding="utf-8-sig"))
+            corner = crop_box(sidecar, crop, size)
+            if isinstance(corner, str):
+                problems.append(f"{shot.source}: {corner}")
+                continue
+            shot.left, shot.top = corner
+            shot.scale = sidecar.get("scale", 100)
+            jobs.append(shot)
     return jobs, problems
 
 
@@ -314,11 +403,7 @@ def render(assets: Path, entries: list[dict], size: tuple[int, int]) -> None:
     width, height = size
     scratch = assets / ".render"
     scratch.mkdir(exist_ok=True)
-    commands = [
-        f'magick "{entry["source"]}" -crop {width}x{height}+{left}+{top} +repage '
-        f'-alpha off -depth 8 "RGB:.render/{index}.rgb"'
-        for index, (entry, left, top) in enumerate(jobs)
-    ]
+    commands = [magick_command(shot, size, f".render/{index}.rgb") for index, shot in enumerate(jobs)]
     owner = f"{os.getuid()}:{os.getgid()}"
     script = (
         "apk add -q --no-cache imagemagick >/dev/null && cd /assets && "
@@ -331,9 +416,9 @@ def render(assets: Path, entries: list[dict], size: tuple[int, int]) -> None:
              IMAGE, "sh", "-c", script],
             check=True,
         )
-        for index, (entry, _, _) in enumerate(jobs):
+        for index, shot in enumerate(jobs):
             raw_path = scratch / f"{index}.rgb"
-            output = assets / "microsoft" / entry["file"]
+            output = assets / "microsoft" / shot.file
             output.parent.mkdir(parents=True, exist_ok=True)
             write_rgb_png(output, raw_path.read_bytes(), width, height)
             raw_path.unlink()
@@ -341,6 +426,20 @@ def render(assets: Path, entries: list[dict], size: tuple[int, int]) -> None:
         for leftover in scratch.glob("*.rgb"):
             leftover.unlink()
         scratch.rmdir()
+
+
+def magick_command(shot: Shot, size: tuple[int, int], raw: str) -> str:
+    """
+    The ImageMagick command that crops one screenshot to raw RGB at `raw`. The crop is the logical
+    rectangle in the capture's pixels; a 200% capture's is then reduced to the output size with -scale,
+    which averages each 2 x 2 block exactly. A 100% capture is not resampled at all, so its screenshot is
+    byte-for-byte what it was before 200% captures were accepted.
+    """
+    width, height = size
+    factor = shot.scale // 100
+    reduce = f"-scale {width}x{height}! " if factor != 1 else ""
+    return (f'magick "{shot.source}" -crop {width * factor}x{height * factor}+{shot.left * factor}+{shot.top * factor} '
+            f'+repage {reduce}-alpha off -depth 8 "RGB:{raw}"')
 
 
 def write_rgb_png(path: Path, pixels: bytes, width: int, height: int) -> None:
@@ -414,7 +513,7 @@ def png_format_problem(path: Path, label: str, size: tuple[int, int]) -> str | N
 def hero_file_problems(assets: Path, entry: dict, size: tuple[int, int]) -> list[str]:
     """Every listing locale's hero exists in the listing's format; its pixels are devkit's to check."""
     problems = []
-    for locale in hero_locales(assets):
+    for locale in listing_locales(assets):
         label = entry.get("file", "").replace(LOCALE_TOKEN, locale)
         path = assets / "microsoft" / label
         if not path.is_file():
@@ -426,12 +525,79 @@ def hero_file_problems(assets: Path, entry: dict, size: tuple[int, int]) -> list
     return problems
 
 
+def shot_problems(assets: Path, shot: Shot, planned: Shot | None, size: tuple[int, int]) -> list[str]:
+    """
+    What is wrong with one cropped screenshot: missing, in another format, or showing a bright window.
+    `planned` is the same screenshot with its crop corner when its capture was usable, else None.
+    """
+    width, height = size
+    path = assets / "microsoft" / shot.file
+    if not path.is_file():
+        return [f"{shot.file}: missing; run the renderer"]
+    format_problem = png_format_problem(path, shot.file, size)
+    if format_problem:
+        return [format_problem]
+    if planned is None:
+        return []
+
+    # The app itself must be dark: its own theme setting can be light while Windows is dark.
+    rows = read_unfiltered_rgb(path, width, height)
+    if isinstance(rows, str):
+        return [f"{shot.file}: {rows}"]
+    sidecar = json.loads((assets / shot.source).with_suffix(".json").read_text(encoding="utf-8-sig"))
+    _, window, _ = logical(sidecar)
+    luma = window_luma(rows, (window["x"] - planned.left, window["y"] - planned.top, window["width"], window["height"]))
+    if luma >= DARK_LUMA_LIMIT:
+        return [f"{shot.file}: the window's mean brightness is {luma:.0f} of 255 (dark is under {DARK_LUMA_LIMIT}); is the app set to its light theme?"]
+    return []
+
+
+def extra_files(assets: Path, entries: list[dict], expected: set[Path]) -> list[str]:
+    """
+    PNGs beside the screenshots that the manifest doesn't list: in each captured entry's folder, and, for
+    a localized entry whose {locale} is a folder, in the folder of any locale the listing doesn't give its
+    own record (dropped, or now a copyFrom). Heroes count as listed; a hero-only folder is devkit's to check.
+    """
+    folders = set()
+    for entry in entries:
+        if is_hero(entry):
+            continue
+        file = str(entry.get("file", ""))
+        if not is_localized(entry):
+            folders.add((assets / "microsoft" / file).parent)
+            continue
+        segments = Path(file).parts
+        if LOCALE_TOKEN not in segments:
+            folders.update((assets / "microsoft" / path).parent for path in expected_for(entry, assets))
+            continue
+        # Every folder in the {locale} position, configured or not, so a dropped locale's images are named.
+        parent = assets / "microsoft" / Path(*segments[:segments.index(LOCALE_TOKEN)])
+        rest = segments[segments.index(LOCALE_TOKEN) + 1:]
+        if parent.is_dir():
+            folders.update((child / Path(*rest)).parent for child in parent.iterdir() if child.is_dir())
+
+    problems = []
+    for folder in sorted(folders):
+        for path in sorted(folder.glob("*.png")):
+            if path.resolve() not in expected:
+                problems.append(f"{path.relative_to(assets).as_posix()}: not in manifest.json")
+    return problems
+
+
+def expected_for(entry: dict, assets: Path) -> list[str]:
+    """Every screenshot file an entry gives, under store-assets/microsoft/: one, or one per listing locale."""
+    file = str(entry.get("file", ""))
+    if is_hero(entry) or is_localized(entry):
+        return [file.replace(LOCALE_TOKEN, locale) for locale in listing_locales(assets)]
+    return [file]
+
+
 def check(assets: Path, entries: list[dict], size: tuple[int, int]) -> int:
     """Every capture and screenshot is as the Store and LIST-8 require, and nothing is extra."""
     width, height = size
     jobs, problems = plan(assets, entries, size)
-    corners = {id(entry): (left, top) for entry, left, top in jobs}
-    rendered = set()
+    planned = {(id(shot.entry), shot.locale): shot for shot in jobs}
+    locales = listing_locales(assets)
     for entry in entries:
         for field in ("caption", "alt"):
             if not entry.get(field):
@@ -439,35 +605,11 @@ def check(assets: Path, entries: list[dict], size: tuple[int, int]) -> int:
         if is_hero(entry):
             problems += hero_file_problems(assets, entry, size)
             continue
+        for shot in shots(entry, locales):
+            problems += shot_problems(assets, shot, planned.get((id(entry), shot.locale)), size)
 
-        path = assets / "microsoft" / entry.get("file", "")
-        rendered.add(path.resolve())
-        if not path.is_file():
-            problems.append(f"{entry.get('file')}: missing; run the renderer")
-            continue
-        format_problem = png_format_problem(path, entry["file"], size)
-        if format_problem:
-            problems.append(format_problem)
-            continue
-        if id(entry) not in corners:
-            continue
-        # The app itself must be dark: its own theme setting can be light while Windows is dark.
-        rows = read_unfiltered_rgb(path, width, height)
-        if isinstance(rows, str):
-            problems.append(f"{entry['file']}: {rows}")
-            continue
-        sidecar = json.loads((assets / entry["source"]).with_suffix(".json").read_text(encoding="utf-8-sig"))
-        window = sidecar["window"]
-        left, top = corners[id(entry)]
-        luma = window_luma(rows, (window["x"] - left, window["y"] - top, window["width"], window["height"]))
-        if luma >= DARK_LUMA_LIMIT:
-            problems.append(f"{entry['file']}: the window's mean brightness is {luma:.0f} of 255 (dark is under {DARK_LUMA_LIMIT}); is the app set to its light theme?")
-
-    # A hero's per-locale folders hold only heroes; devkit-store-hero names any left from a dropped locale.
-    for folder in {(assets / "microsoft" / entry.get("file", "")).parent for entry in entries if not is_hero(entry)}:
-        for path in folder.glob("*.png"):
-            if path.resolve() not in rendered:
-                problems.append(f"{path.relative_to(assets).as_posix()}: not in manifest.json")
+    expected = {(assets / "microsoft" / file).resolve() for entry in entries for file in expected_for(entry, assets)}
+    problems += extra_files(assets, entries, expected)
 
     if not 1 <= len(entries) <= MAX_SCREENSHOTS:
         problems.append(f"{len(entries)} screenshots; the Store takes 1 to {MAX_SCREENSHOTS}")
