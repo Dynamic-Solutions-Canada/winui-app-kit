@@ -35,7 +35,7 @@
   "kit.settings.reset-title": "Einstellungen wurden zurückgesetzt",
   "kit.settings.reset-notice": "Deine Einstellungen konnten nicht gelesen werden, daher werden die Standardwerte verwendet. Die alte Datei wurde als {{file}} aufbewahrt.",
   "kit.settings.reset-header": "Einstellungen zurücksetzen",
-  "kit.settings.reset-desc": "Setzt Ihre Einstellungen auf die Standardwerte zurück. Die aktuellen Einstellungen bleiben als Sicherungsdatei neben der Einstellungsdatei erhalten.",
+  "kit.settings.reset-desc": "Setzt deine Einstellungen auf die Standardwerte zurück. Die aktuellen Einstellungen bleiben als Sicherungsdatei neben der Einstellungsdatei erhalten.",
   "kit.settings.reset-button": "Einstellungen zurücksetzen",
   "kit.settings.reset-question": "Einstellungen zurücksetzen?",
   "kit.settings.reset-body": "Design, Sprache und alle anderen Einstellungen werden auf die Standardwerte zurückgesetzt.",
