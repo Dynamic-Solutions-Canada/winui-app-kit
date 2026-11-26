@@ -173,7 +173,7 @@ Shell.Select("home");
 
 An item that runs something instead of opening a page ("Add ...") goes in `MenuItems` with `SelectsOnInvoked="False"` and a string `Tag`. The shell never selects it and raises `ActionInvoked` with its tag instead of `PageSelected`; `Select` returns false for it.
 
-The footer is always "Our other apps" then "About", and the built-in Settings item follows the app's language. `SetUpSettingsWindow` applies Mica, the custom title bar, the window icon, a minimum size (500 × 500 DIPs unless the app passes `minWidthDip` and `minHeightDip`), the saved placement and the app's theme. The shell shows the full 240-wide pane from 860 epx wide, and a compact icon rail below that, so pages keep about 450 epx at the minimum; `WindowChrome.SetMinimumSize` gives any other window the same scale-aware minimum. The app keeps one instance of the window and saves `WindowChrome.CapturePlacement` when it closes.
+The footer is always "Our other apps" then "About", and the built-in Settings item follows the app's language. `SetUpSettingsWindow` applies Mica, the custom title bar, the window icon, a minimum size (500 × 500 DIPs unless the app passes `minWidthDip` and `minHeightDip`), the saved placement and the app's theme. The shell shows the full pane from 860 epx wide, 240 wide or, when a label needs more (a long translation such as "Nuestras otras aplicaciones", or a long name the app adds), as wide as the longest label up to 320, so labels are not clipped; and a compact icon rail below that, so pages keep about 450 epx at the minimum; `WindowChrome.SetMinimumSize` gives any other window the same scale-aware minimum. The app keeps one instance of the window and saves `WindowChrome.CapturePlacement` when it closes.
 
 ### About page
 
