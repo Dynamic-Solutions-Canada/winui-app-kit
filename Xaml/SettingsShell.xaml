@@ -1,6 +1,7 @@
 <!--
   The shared settings window shell (UI-1, UI-2): a 48 px title bar with the app icon and name, and a
-  left NavigationView (240 wide from 860 epx, a compact icon rail below that and never hidden; back
+  left NavigationView (240 wide from 860 epx, wider up to 320 when a label needs it, see FitPaneToLabels;
+  a compact icon rail below that and never hidden; back
   button hidden, built-in Settings on) whose footer is always
   "Our other apps" then "About". The app's own SettingsWindow hosts it, adds its own menu items and
   maps each selected tag to a page. Labels come from the kit's catalog (kit.*).

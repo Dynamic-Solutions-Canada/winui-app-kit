@@ -24,8 +24,33 @@ public sealed partial class SettingsShell : UserControl
     /// <summary>The tag of the "About" footer item; navigate to <see cref="AboutPage"/> with the app's <see cref="AboutInfo"/>.</summary>
     public const string AboutTag = "kit.about";
 
+    /// <summary>The open pane's usual width (UI-1), and the narrowest it gets.</summary>
+    private const double MinPaneLength = 240;
+
+    /// <summary>
+    /// The widest the open pane may grow to fit a long label, as wide as Windows' own Settings pane, so a
+    /// page keeps most of the window.
+    /// </summary>
+    private const double MaxPaneLength = 320;
+
+    /// <summary>
+    /// Everything a left-pane item spends on something other than its label, in DIPs, from WinUI's
+    /// NavigationViewItem template: 4 + 4 button margin, the 40 wide icon column, the label's 4 + 8 margin
+    /// and the 14 the content grid keeps at its right. A label this much narrower than the pane fits.
+    /// </summary>
+    private const double ItemChromeWidth = 74;
+
+    /// <summary>Spare width so layout rounding at 125% or 150% never clips the longest label's last pixel.</summary>
+    private const double RoundingSlack = 2;
+
+    /// <summary>The body text size of a navigation item's label.</summary>
+    private const double ItemLabelFontSize = 14;
+
     /// <summary>A selection asked for before the navigation view had its items, applied once it loads.</summary>
     private string? _pendingTag;
+
+    /// <summary>True while a pane width fit is queued, so a burst of changes runs it once.</summary>
+    private bool _fitQueued;
 
     /// <summary>Create the shell. Set <see cref="Caption"/> and <see cref="IconPngPath"/>, then add menu items.</summary>
     public SettingsShell()
@@ -38,15 +63,28 @@ public sealed partial class SettingsShell : UserControl
         Navigation.Loaded += (_, _) =>
         {
             UiText.Changed += LabelSettingsItem;
+            UiText.Changed += QueuePaneFit;
             LabelSettingsItem();
+            FitPaneToLabels();
             if (_pendingTag is { } tag)
             {
                 _pendingTag = null;
                 Select(tag);
             }
         };
-        Navigation.Unloaded += (_, _) => UiText.Changed -= LabelSettingsItem;
+        Navigation.Unloaded += (_, _) =>
+        {
+            UiText.Changed -= LabelSettingsItem;
+            UiText.Changed -= QueuePaneFit;
+        };
         Navigation.ItemInvoked += Navigation_ItemInvoked;
+
+        // Items the app adds later (a setup, a launcher) can be longer than the ones there now. Renaming an
+        // item in place raises no change here; the next language change or added item refits.
+        if (Navigation.MenuItems is global::Windows.Foundation.Collections.IObservableVector<object> items)
+        {
+            items.VectorChanged += (_, _) => QueuePaneFit();
+        }
     }
 
     /// <summary>Raised when the user selects an item: the item's <c>Tag</c>, or <see cref="SettingsTag"/> for Settings.</summary>
@@ -154,6 +192,49 @@ public sealed partial class SettingsShell : UserControl
         {
             ActionInvoked?.Invoke(tag);
         }
+    }
+
+    /// <summary>
+    /// Fit the pane after the current change has settled: a language change relabels every item from its
+    /// own <see cref="UiText.Changed"/> handler, which may run after this one, so the fit waits its turn.
+    /// </summary>
+    private void QueuePaneFit()
+    {
+        if (_fitQueued)
+        {
+            return;
+        }
+
+        _fitQueued = DispatcherQueue.TryEnqueue(() =>
+        {
+            _fitQueued = false;
+            FitPaneToLabels();
+        });
+    }
+
+    /// <summary>
+    /// Widen the open pane so the longest label fits, from <see cref="MinPaneLength"/> up to
+    /// <see cref="MaxPaneLength"/>; a label longer than that still trims. Translations such as
+    /// "Nuestras otras aplicaciones" run past the usual 240, and WinUI clips a label rather than
+    /// wrapping it. The compact rail and the threshold for the open pane are unchanged.
+    /// </summary>
+    private void FitPaneToLabels()
+    {
+        double widest = 0;
+        var measure = new TextBlock { FontSize = ItemLabelFontSize };
+        foreach (var item in Navigation.MenuItems.Concat(Navigation.FooterMenuItems).Append(Navigation.SettingsItem))
+        {
+            if (item is not NavigationViewItem { Content: string label } || string.IsNullOrWhiteSpace(label))
+            {
+                continue;
+            }
+
+            measure.Text = label;
+            measure.Measure(new global::Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
+            widest = Math.Max(widest, measure.DesiredSize.Width);
+        }
+
+        Navigation.OpenPaneLength = Math.Clamp(Math.Ceiling(widest + ItemChromeWidth + RoundingSlack), MinPaneLength, MaxPaneLength);
     }
 
     /// <summary>
