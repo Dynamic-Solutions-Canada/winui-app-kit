@@ -40,6 +40,9 @@ public sealed partial class SettingsShell : UserControl
     /// </summary>
     private const double ItemChromeWidth = 74;
 
+    /// <summary>Spare width so layout rounding at 125% or 150% never clips the longest label's last pixel.</summary>
+    private const double RoundingSlack = 2;
+
     /// <summary>The body text size of a navigation item's label.</summary>
     private const double ItemLabelFontSize = 14;
 
@@ -76,7 +79,8 @@ public sealed partial class SettingsShell : UserControl
         };
         Navigation.ItemInvoked += Navigation_ItemInvoked;
 
-        // Items the app adds or renames later (a setup, a launcher) can be longer than the ones there now.
+        // Items the app adds later (a setup, a launcher) can be longer than the ones there now. Renaming an
+        // item in place raises no change here; the next language change or added item refits.
         if (Navigation.MenuItems is global::Windows.Foundation.Collections.IObservableVector<object> items)
         {
             items.VectorChanged += (_, _) => QueuePaneFit();
@@ -230,7 +234,7 @@ public sealed partial class SettingsShell : UserControl
             widest = Math.Max(widest, measure.DesiredSize.Width);
         }
 
-        Navigation.OpenPaneLength = Math.Clamp(Math.Ceiling(widest + ItemChromeWidth), MinPaneLength, MaxPaneLength);
+        Navigation.OpenPaneLength = Math.Clamp(Math.Ceiling(widest + ItemChromeWidth + RoundingSlack), MinPaneLength, MaxPaneLength);
     }
 
     /// <summary>
